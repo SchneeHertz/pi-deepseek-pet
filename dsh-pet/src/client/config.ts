@@ -47,13 +47,16 @@ export function assertClientConfig(raw: unknown): ClientConfig {
     if (!id || seen.has(id)) throw new Error('dsh-pet: pet id 非法或重复「' + id + '」');
     const size = Number(p?.size);
     if (!Number.isFinite(size) || size <= 0) throw new Error('dsh-pet: pet「' + id + '」大小非法');
+    const balanceEnabled = p?.balanceEnabled;
+    if (typeof balanceEnabled !== 'boolean')
+      throw new Error('dsh-pet: pet「' + id + '」缺少 balanceEnabled（需为布尔值 true/false）');
     const corner = p?.position?.corner;
     if (typeof corner !== 'string' || !CORNER_SET.has(corner)) throw new Error('dsh-pet: pet「' + id + '」corner 非法');
     const marginX = Number(p?.position?.marginX);
     const marginY = Number(p?.position?.marginY);
     if (!Number.isFinite(marginX) || !Number.isFinite(marginY)) throw new Error('dsh-pet: pet「' + id + '」边距非法');
     seen.add(id);
-    pets.push({ id, size, position: { corner: corner as Corner, marginX, marginY } });
+    pets.push({ id, size, balanceEnabled, position: { corner: corner as Corner, marginX, marginY } });
   }
 
   // ---- animations ----

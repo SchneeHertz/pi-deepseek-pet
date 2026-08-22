@@ -13,7 +13,7 @@
   <img alt="assets" src="https://img.shields.io/badge/assets-dynamic%20animations-ff69b4">
 </p>
 
-一只住在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web 界面里的桌面宠物：待机呼吸、随机动作（含打瞌睡）、偶尔转向、屏幕漫游、点击反应、可拖拽。
+一只住在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web 界面里的桌面宠物：待机呼吸、随机动作（含打瞌睡）、偶尔转向、屏幕漫游、点击反应、可拖拽——还能实时展示 LLM 服务商的余额/额度（余额动画 + 头顶联想气泡）。
 
 这不是一个普通插件，而是**完整的三件套项目**：
 
@@ -88,7 +88,7 @@ python encode_thumbs.py      # 转码 640×360 播放变体 → step04/
 
 **依赖**：Python 3 + ffmpeg + numpy + scipy（素材链脚本自动用工作区 `.tools/` 下的 ffmpeg）。
 
-> **本项目全部采用路线 B**（91 个动作均为 PR 手工抠像）：对"含第三方物品/透明边缘复杂"的动作，自动 HSV 抠像易残边或误抠，PR 手动遮罩更精细。两条路线产出同一级 `step02/`，后续步骤完全一致；`chroma_step02.py` 保留为自动化兜底，任何动作仍可一键自动生成。
+> **本项目全部采用路线 B**（97 个动作均为 PR 手工抠像）：对"含第三方物品/透明边缘复杂"的动作，自动 HSV 抠像易残边或误抠，PR 手动遮罩更精细。两条路线产出同一级 `step02/`，后续步骤完全一致；`chroma_step02.py` 保留为自动化兜底，任何动作仍可一键自动生成。
 
 ### ③ 动画 → 插件
 
@@ -125,7 +125,8 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 
 ## 插件功能
 
-- **纯粹的桌宠**：不掺任何业务功能——没有天气查询、系统监控、Agent 状态感知，就一件事：陪你。零核心改动（不碰 DSH 内核）、零模型成本（运行时不需要调用任何 LLM 或 API）
+- **纯粹的桌宠**：核心就是陪你——没有天气查询、系统监控、Agent 状态感知等花活；唯一的"业务功能"是**可选的余额展示**（见下节）。零核心改动（不碰 DSH 内核）
+- **余额展示**：实时显示当前 LLM 服务商的余额/额度——DeepSeek 官方显示账户余额（¥），OpenCode Zen Go 显示 5h/周/月 三个额度窗口中最紧张的一个；每次刷新按档位播放余额动画，头顶弹出联想气泡（随宠物大小等比缩放，10 秒后自动消失）；每只宠物可独立开关（`balanceEnabled`）
 - **动画链**：每个动画（含待机）播完立即按权重选下一个（权重配置于 `config.jsonc`，默认 idle 10 / turn 5 / move 5 + 动作分类权重），首尾相接永不停止
 - **多开**：可配置同时显示多个宠物，每只宠物独立的大小与位置（设置页「桌宠配置」添加/删除）
 - **屏幕漫游**：朝 facing 方向行走，先检查空间、不走出屏幕
@@ -133,6 +134,15 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 - **左右朝向**：所有动画可镜像，人物可朝左/朝右
 - **落地对齐**：动画统一脚底线，宠物始终站在地面上
 - **流畅切换**：双缓冲交叉淡入，切换无空白帧
+
+## ⚙️ 余额展示（Balance）
+
+余额是"事件动画"的一种：运行时按 `eventsRefreshSec.balance`（秒）周期拉取当前服务商（跟随 `agent-default-model` 的 provider）的余额/用量数据，每次刷新按档位触发一次余额动画，并在宠物头顶弹出**联想气泡**（气泡为角色"思考"式白泡，随宠物大小等比缩放，10 秒后自动消失）：
+
+- **DeepSeek 官方（`deepseek-official`）**：气泡显示账户余额（如 `余额 ¥8.79`）；余额按 ¥20 满额折算成已用百分比，分 6 档播放动画（钱袋满溢 → 金袋叮当 → 钱袋如常 → 数金皱眉 → 袋空如洗 → 分文不剩）
+- **OpenCode Zen Go（`opencode-go`）**：气泡显示 5h/周/月 三个额度窗口中最先告急的一个（如 `周额度已用 88%` / `2.5 天重置`），同样按已用百分比分档
+- **按宠物开关**：`pets[i].balanceEnabled`（必填布尔）控制该宠物是否触发余额动画/显示气泡；全部宠物关闭时自动跳过余额轮询
+- **所需凭据**：对应 provider 的 API key（`deepseek-official` → `DEEPSEEK_API_KEY`；`opencode-go` → `OPENCODE_GO_API_KEY`），在 DSH 凭据中配置后启用；未匹配的服务商按设计不触发动画、不显示气泡
 
 ## ⚙️ 配置（大小 / 位置 / 多开）
 
@@ -143,6 +153,7 @@ DSH 设置 → 「桌宠配置」：
 
 - **大小**：宽度 px（高度自动 = 宽度 × 9/16）
 - **位置**：四角（corner）＋ 水平/垂直边距（marginX / marginY）
+- **余额功能**：勾选后该宠物才会触发余额动画并显示余额气泡
 - **多开**：添加/删除宠物，每只宠物独立 id、大小、位置
 - 点「保存」**即时生效**（无需刷新）；「恢复默认」回到 config.jsonc 默认
 
@@ -151,12 +162,13 @@ DSH 设置 → 「桌宠配置」：
 
 ```jsonc
 "pets": [
-  { "id": "main", "size": 462, "position": { "corner": "top-right", "marginX": 24, "marginY": 100 } }
+  { "id": "main", "size": 462, "balanceEnabled": true, "position": { "corner": "top-right", "marginX": 24, "marginY": 100 } }
 ]
 ```
 
-- 每只宠物：`id`（标识）／ `size`（宽度 px）／ `position`（corner 四角之一 + marginX/marginY 边距）
-- 设置页的修改保存到用户层 `$DSH_HOME/pet-config.json`（**完整宠物列表**，覆盖包内默认）；「恢复默认」即清除用户层、回落 config.jsonc
+- 每只宠物：`id`（标识）／ `size`（宽度 px）／ `balanceEnabled`（是否启用余额功能，必填布尔）／ `position`（corner 四角之一 + marginX/marginY 边距）
+- 余额刷新周期：`eventsRefreshSec.balance`（秒）——余额数据刷新与余额动画触发的间隔，启动时立即触发一次，之后按此周期循环（默认 180）
+- 设置页的修改保存到用户层 `$DSH_HOME/dsh-pet/main-config.json`（**完整宠物列表**，覆盖包内默认）；「恢复默认」即清除用户层、回落 config.jsonc
 
 ## 运行效果
 
@@ -305,6 +317,17 @@ DSH 设置 → 「桌宠配置」：
 
 <p>
   <img src="dsh-pet/assets/preview/beishubiao-tuozhuai-xuankong-fankui.gif" width="160" alt="被鼠标拖拽悬空反馈" title="被鼠标拖拽悬空反馈">
+</p>
+
+**余额事件**（按余额已用百分比分档，满格 → 告急 → 耗尽）
+
+<p>
+  <img src="dsh-pet/assets/preview/qian-dai-man-yi.gif" width="160" alt="余额-钱袋满溢" title="余额-钱袋满溢">
+  <img src="dsh-pet/assets/preview/jin-dai-ding-dang.gif" width="160" alt="余额-金袋叮当" title="余额-金袋叮当">
+  <img src="dsh-pet/assets/preview/qian-dai-ru-chang.gif" width="160" alt="余额-钱袋如常" title="余额-钱袋如常">
+  <img src="dsh-pet/assets/preview/shu-jin-zhou-mei.gif" width="160" alt="余额-数金皱眉" title="余额-数金皱眉">
+  <img src="dsh-pet/assets/preview/dai-kong-ru-xi.gif" width="160" alt="余额-袋空如洗" title="余额-袋空如洗">
+  <img src="dsh-pet/assets/preview/fen-wen-bu-sheng.gif" width="160" alt="余额-分文不剩" title="余额-分文不剩">
 </p>
 
 > 注：动画为透明背景；GIF 预览中透明部分显示为页面底色，实际 webm 播放为透明。

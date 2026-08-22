@@ -7,7 +7,7 @@ import { planMove } from './motion';
 import { assertClientConfig, EMPTY_CONF, applyUserOverrides, stripJsonc, type UserOverrides } from './config';
 import { balanceEventIndex, balancePercent, fetchBalanceState, type BalanceState } from './balance';
 import { makeBalanceBubble } from './bubble';
-import { CANVAS_H, FEET_Y, HIT_BOX, DRAG_THRESHOLD } from './constants';
+import { CANVAS_H, FEET_Y, HIT_BOX, DRAG_THRESHOLD, PET_REF_WIDTH } from './constants';
 import { petBridge } from './settings';
 import type { ClientConfig, Corner, Pet } from './types';
 import type * as ReactNS from 'react';
@@ -126,6 +126,10 @@ export function makePetUI(rt: {
         el.classList.add('is-front');
         if (old.current && old.current !== el) {
           old.current.classList.remove('is-front');
+          // 拆雷：降级为背景的视频继续播完会触发它身上残留的 onended → handleEnded，
+          // 掐断当前前台动画（历史上表现为随机急速跳转/雪崩）。清 handler + 停播彻底消除。
+          old.current.onended = null;
+          old.current.pause();
         }
         frontRef.current = frontRef.current === 0 ? 1 : 0;
         pendingRef.current = null;
@@ -150,9 +154,11 @@ export function makePetUI(rt: {
       [],
     );
     // 余额事件：容器拉取成功后递增 balanceTick → 按档位播放事件动画 + 弹气泡
-    // （仅余额数据有效时触发；无效/不支持按设计不触发动画，错误由容器侧显式上报）
+    // （仅启用余额功能的宠物触发：未启用则该宠物完全不播余额动画、不显示气泡；
+    //   无效/不支持按设计不触发动画，错误由容器侧显式上报）
     const prevTickRef = useRef(0);
     useEffect(() => {
+      if (!cfg.balanceEnabled) return; // 未启用余额功能 -> 该宠物对余额事件完全免疫
       if (balanceTick === 0 || balanceTick === prevTickRef.current) return;
       prevTickRef.current = balanceTick;
       if (!balance || !balance.ok) return;
@@ -212,14 +218,16 @@ export function makePetUI(rt: {
         next = pick(animations.turn, animRef.current);
         setAnim(next);
       } else if (k === 'move') {
-        if (!tryMove()) {
+        const moved = tryMove();
+        if (moved === false) {
           const act = pickCategoryAction(animations.categories, animations.idle, facingRef.current, animRef.current);
           kind = act.id;
           next = act.name;
           setAnim(next);
         } else {
           kind = 'MOVES';
-          next = '移动(池内随机)';
+          // 成功返回具体动作名；占用中返回 true（已有一场移动在进行，不重播、不另设动画）
+          next = typeof moved === 'string' ? moved : '移动进行中(不重播)';
         }
       } else {
         const act = pickCategoryAction(animations.categories, animations.idle, facingRef.current, animRef.current);
@@ -245,7 +253,10 @@ export function makePetUI(rt: {
       setSeq((s) => s + 1);
     };
 
-    const handleEnded = () => {
+    const handleEnded = (e?: Event) => {
+      // 只认前台视频触发的 ended：后台（被降级停播）视频即便有残留事件也一律丢弃，防止掐断当前动画
+      const evEl = e && (e.currentTarget as HTMLVideoElement | null);
+      if (evEl && !evEl.classList.contains('is-front')) return;
       const { animations } = config;
       if (dragRef.current.active) return;
       // 事件动画播完：回 idle（与 drag/clicks 同分支，不进入随机链）；气泡由定时器自动消失，与动画解耦
@@ -335,7 +346,8 @@ export function makePetUI(rt: {
       moveRef.current = requestAnimationFrame(step);
     };
 
-    const tryMove = () => {
+    /** 尝试发起一次移动：占用中返回 true（不重播），无法移动返回 false，成功返回动作名（供日志显示具体动作） */
+    const tryMove = (): boolean | string => {
       if (moveRef.current !== null || pendingMoveRef.current) return true;
       const moves = config.animations.moves;
       const actions = moves.actions;
@@ -344,14 +356,17 @@ export function makePetUI(rt: {
       const mp = Object.assign({}, moves.default, chosen.params || {});
       const dir = (facingRef.current === 'right') !== config.animations.turn.includes(animRef.current) ? 1 : -1;
       const W = window.innerWidth;
+      // 移动距离随宠物缩放：config 的 minDist/maxDist 是基准尺寸（462px 宽）下的 px，
+      // 按 实际size/基准 等比缩放 —— 小宠物挪小步、大宠物挪大步，与人物自身大小匹配
+      const distScale = size / PET_REF_WIDTH;
       const plan = planMove({
         cx: currentCenterX(),
         cy: currentCenterY(),
         W,
         H: window.innerHeight,
         dir,
-        minDist: mp.minDist,
-        maxDist: mp.maxDist,
+        minDist: mp.minDist * distScale,
+        maxDist: mp.maxDist * distScale,
         margin: mp.margin,
         halfW,
       });
@@ -364,7 +379,7 @@ export function makePetUI(rt: {
       };
       setOnce(true);
       setAnim(chosen.name);
-      return true;
+      return chosen.name;
     };
     const stopMove = () => {
       pendingMoveRef.current = null;
@@ -403,7 +418,11 @@ export function makePetUI(rt: {
         d.dragging = true;
         setDragging(true);
         setOnce(true);
-        if (config.animations.drag.length) setAnim(pick(config.animations.drag));
+        if (config.animations.drag.length) {
+          const name = pick(config.animations.drag);
+          console.log('[dsh-pet] ' + new Date().toTimeString().slice(0, 8) + ' pet=' + cfg.id + ' -> [DRAG] ' + name);
+          setAnim(name);
+        }
       }
       const rootEl = rootRef.current;
       if (rootEl) {
@@ -439,7 +458,10 @@ export function makePetUI(rt: {
       if (d.active || d.dragging || justDraggedRef.current) return;
       stopMove();
       setOnce(true);
-      if (config.animations.clicks.length) setAnim(pick(config.animations.clicks));
+      if (!config.animations.clicks.length) return;
+      const name = pick(config.animations.clicks);
+      console.log('[dsh-pet] ' + new Date().toTimeString().slice(0, 8) + ' pet=' + cfg.id + ' -> [CLICK] ' + name);
+      setAnim(name);
     };
 
     // ---- 渲染 ----
@@ -486,8 +508,8 @@ export function makePetUI(rt: {
         rootStyle,
       ),
       children: [
-        // 余额气泡（仅数据有效时渲染；显示与否由 bubbleOn 控制）
-        balance && balance.ok ? h(BalanceBubble, { state: balance, on: bubbleOn }) : null,
+        // 余额气泡（仅启用余额功能的宠物渲染；显示与否由 bubbleOn 控制）
+        balance && balance.ok && cfg.balanceEnabled ? h(BalanceBubble, { state: balance, on: bubbleOn }) : null,
         h('div', {
           ref: stageRef,
           className: 'dsh-pet-stage',
@@ -549,10 +571,13 @@ export function makePetUI(rt: {
       };
     }, []);
 
-    // 余额轮询：配置就绪（ready）后启动拉取一次，之后按 eventsRefreshSec.balance（秒）周期刷新；
+    // 是否存在启用余额功能的宠物：全禁用时跳过余额轮询（不拉取 /pet/balance，避免无意义的周期请求）
+    const anyBalanceEnabled = pets.some((p) => p.balanceEnabled);
+
+    // 余额轮询：配置就绪（ready）且至少一只宠物启用余额后启动拉取一次，之后按 eventsRefreshSec.balance（秒）周期刷新；
     // 成功递增 balanceTick 触发事件动画；失败/不支持均不触发动画（错误显式 console.error，绝不显示伪造余额）
     useEffect(() => {
-      if (!ready) return; // 配置未就绪不启动：刷新间隔需读合并后的 eventsRefreshSec
+      if (!ready || !anyBalanceEnabled) return; // 未就绪 / 全宠物未启用余额：不启动轮询
       let alive = true;
       const refresh = async () => {
         try {
@@ -576,7 +601,7 @@ export function makePetUI(rt: {
         alive = false;
         window.clearInterval(timer);
       };
-    }, [ready]);
+    }, [ready, anyBalanceEnabled]);
 
     return ready ? pets.map((p) => h(PetCard, { key: p.id, cfg: p, balance, balanceTick })) : null;
   }

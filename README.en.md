@@ -11,7 +11,7 @@
   <img alt="assets" src="https://img.shields.io/badge/assets-dynamic%20animations-ff69b4">
 </p>
 
-A desktop pet living inside the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI: idle breathing, random actions (including dozing off), occasional turns, screen wandering, click reactions, and draggable.
+A desktop pet living inside the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI: idle breathing, random actions (including dozing off), occasional turns, screen wandering, click reactions, and draggable — it can also display your LLM provider's balance/quota in real time (balance animations + a thinking bubble above the head).
 
 This is not just a plugin — it's a **complete three-piece project**:
 
@@ -88,7 +88,7 @@ python encode_thumbs.py      # transcode 640×360 playback variants → step04/
 
 **Dependencies**: Python 3 + ffmpeg + numpy + scipy (the pipeline scripts automatically use the ffmpeg under the workspace `.tools/`).
 
-> **This project uses Track B for all 91 actions** (every action is PR hand-keyed): for actions with 3rd-party props or complex transparent edges, automatic HSV keying tends to leave fringes or mis-key pixels, while manual masks in PR are far cleaner. Both tracks produce the same `step02/` level, so everything downstream is identical; `chroma_step02.py` is kept as the automatic fallback so any action can still be generated with one command.
+> **This project uses Track B for all 97 actions** (every action is PR hand-keyed): for actions with 3rd-party props or complex transparent edges, automatic HSV keying tends to leave fringes or mis-key pixels, while manual masks in PR are far cleaner. Both tracks produce the same `step02/` level, so everything downstream is identical; `chroma_step02.py` is kept as the automatic fallback so any action can still be generated with one command.
 
 ### ③ Animations → Plugin
 
@@ -125,7 +125,8 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 
 ## Plugin Features
 
-- **A pure pet, nothing else**: no business features bolted on — no weather lookups, no system monitoring, no agent-state sensing; it just keeps you company. Zero core changes (never touches the DSH kernel) and zero model cost (no LLM/API calls at runtime)
+- **A pure pet, nothing else**: it just keeps you company — no weather lookups, no system monitoring, no agent-state sensing; the only "business feature" is the **optional balance display** (see below). Zero core changes (never touches the DSH kernel)
+- **Balance display**: shows the current LLM provider's balance/quota in real time — DeepSeek official shows the account balance (¥); OpenCode Zen Go shows whichever of the 5h/weekly/monthly quota windows is tightest; on every refresh it plays a tiered balance animation and pops a thinking bubble above the head (scales with the pet size, auto-dismisses after 10 s); each pet can enable it independently (`balanceEnabled`)
 - **Animation chain**: each animation (idle included) is immediately followed by a weight-based pick (weights live in `config.jsonc`; default idle 10 / turn 5 / move 5 + per-category weights), endless and seamless
 - **Multi-pet**: configure multiple pets at once, each with its own size and position (add/remove in the "Pet Config" settings page)
 - **Screen wandering**: walks toward its facing direction, checks the space ahead, never walks off screen
@@ -133,6 +134,15 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 - **Left/right facing**: all animations can be mirrored; the character can face left or right
 - **Ground alignment**: animations share a unified foot line, the pet always stands on the ground
 - **Smooth switching**: double-buffered cross-fade, no blank frames between transitions
+
+## ⚙️ Balance Display
+
+Balance is a kind of "event animation": at runtime the plugin polls the current provider's (following `agent-default-model`) balance/quota endpoint every `eventsRefreshSec.balance` seconds; on each refresh it plays a tiered balance animation and pops a **thinking bubble** above the pet's head (a white "thought" bubble that scales with the pet size and auto-dismisses after 10 seconds):
+
+- **DeepSeek official (`deepseek-official`)**: the bubble shows the account balance (e.g. `余额 ¥8.79`); the balance is converted to a used-percentage against ¥20 as full, then mapped to 6 animation tiers (钱袋满溢 → 金袋叮当 → 钱袋如常 → 数金皱眉 → 袋空如洗 → 分文不剩)
+- **OpenCode Zen Go (`opencode-go`)**: the bubble shows whichever of the 5h/weekly/monthly quota windows runs out first (e.g. `周额度已用 88%` / `2.5 天重置`), mapped to the same percentage tiers
+- **Per-pet switch**: `pets[i].balanceEnabled` (required boolean) controls whether that pet triggers balance animations/shows the bubble; when every pet has it disabled, polling is skipped entirely
+- **Required credentials**: the provider's API key (`deepseek-official` → `DEEPSEEK_API_KEY`; `opencode-go` → `OPENCODE_GO_API_KEY`), configured in DSH credentials; unmapped providers deliberately never trigger the animation or bubble
 
 ## ⚙️ Configuration (Size / Position / Multi-pet)
 
@@ -143,6 +153,7 @@ DSH Settings → **Pet Config**:
 
 - **Size**: width in px (height is automatic = width × 9/16)
 - **Position**: one of four corners (corner) plus horizontal/vertical margins (marginX / marginY)
+- **Balance**: tick it to let this pet trigger balance animations and show the balance bubble
 - **Multi-pet**: add/remove pets; each pet has its own id, size and position
 - **Save** applies **instantly** (no page refresh needed); **Reset to default** restores the `config.jsonc` defaults
 
@@ -151,12 +162,13 @@ The `pets` array in `dsh-pet/assets/config.jsonc` defines the **default pets**:
 
 ```jsonc
 "pets": [
-  { "id": "main", "size": 462, "position": { "corner": "top-right", "marginX": 24, "marginY": 100 } }
+  { "id": "main", "size": 462, "balanceEnabled": true, "position": { "corner": "top-right", "marginX": 24, "marginY": 100 } }
 ]
 ```
 
-- Each pet: `id` (identifier) / `size` (width px) / `position` (corner + marginX/marginY)
-- Changes made in the settings page are saved to the user layer `$DSH_HOME/pet-config.json` (a **full pet list** that overrides the package defaults); "Reset to default" removes it and falls back to `config.jsonc`
+- Each pet: `id` (identifier) / `size` (width px) / `balanceEnabled` (whether balance is enabled, required boolean) / `position` (corner + marginX/marginY)
+- Balance refresh period: `eventsRefreshSec.balance` (seconds) — the interval between balance data refreshes and balance-animation triggers; fires once on startup, then loops at this interval (default 180)
+- Changes made in the settings page are saved to the user layer `$DSH_HOME/dsh-pet/main-config.json` (a **full pet list** that overrides the package defaults); "Reset to default" removes it and falls back to `config.jsonc`
 
 ## Running Screenshots
 
@@ -235,6 +247,17 @@ All animations (640×360, the actual assets the plugin plays) — GIF previews l
 
 <p>
   <img src="dsh-pet/assets/preview/beishubiao-tuozhuai-xuankong-fankui.gif" width="160" alt="Dragged by the mouse" title="Dragged by the mouse">
+</p>
+
+**Balance Events** (tiered by used balance percentage — full → warning → empty)
+
+<p>
+  <img src="dsh-pet/assets/preview/qian-dai-man-yi.gif" width="160" alt="Balance - overflowing money bag" title="Balance - overflowing money bag">
+  <img src="dsh-pet/assets/preview/jin-dai-ding-dang.gif" width="160" alt="Balance - jingling coins" title="Balance - jingling coins">
+  <img src="dsh-pet/assets/preview/qian-dai-ru-chang.gif" width="160" alt="Balance - bag as usual" title="Balance - bag as usual">
+  <img src="dsh-pet/assets/preview/shu-jin-zhou-mei.gif" width="160" alt="Balance - counting coins, frowning" title="Balance - counting coins, frowning">
+  <img src="dsh-pet/assets/preview/dai-kong-ru-xi.gif" width="160" alt="Balance - empty bag" title="Balance - empty bag">
+  <img src="dsh-pet/assets/preview/fen-wen-bu-sheng.gif" width="160" alt="Balance - no penny left" title="Balance - no penny left">
 </p>
 
 > Note: the animations have transparent backgrounds; in these GIF previews the transparent areas show the page background color, while the actual webm playback is transparent.

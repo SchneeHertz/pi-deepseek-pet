@@ -50,6 +50,8 @@ export interface Animations {
 export interface Pet {
   id: string;
   size: number;
+  /** 是否启用余额功能：true=触发余额动画+显示余额气泡；false=该宠物完全禁用余额。缺失即配置错误 */
+  balanceEnabled: boolean;
   position: { corner: Corner; marginX: number; marginY: number };
 }
 

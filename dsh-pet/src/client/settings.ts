@@ -43,6 +43,8 @@ export const zh = {
   emptyPets: '暂无宠物，点击「添加宠物」创建。',
   sizeLabel: '大小（宽度 px）',
   sizeHint: '高度自动 = 宽度 × 9/16。',
+  balanceEnabled: '余额功能',
+  balanceEnabledHint: '启用后该宠物触发余额动画并显示余额气泡。',
   cornerLabel: '位置',
   'corner.top-left': '左上角',
   'corner.top-right': '右上角',
@@ -78,6 +80,8 @@ export const en = {
   emptyPets: 'No pets yet — click "Add pet" to create one.',
   sizeLabel: 'Size (width px)',
   sizeHint: 'Height is automatic = width × 9/16.',
+  balanceEnabled: 'Balance',
+  balanceEnabledHint: 'When enabled, this pet plays balance animations and shows the balance bubble.',
   cornerLabel: 'Position',
   'corner.top-left': 'Top-left',
   'corner.top-right': 'Top-right',
@@ -243,7 +247,10 @@ export function makePetConfigSection(rt: {
       const tpl = petBridge.template;
       if (!tpl) return;
       const id = nextId(pets);
-      setPets((list) => [...list, { id, size: tpl.size, position: { ...tpl.position } }]);
+      setPets((list) => [
+        ...list,
+        { id, size: tpl.size, balanceEnabled: tpl.balanceEnabled, position: { ...tpl.position } },
+      ]);
       setSelId(id);
     };
 
@@ -420,6 +427,29 @@ export function makePetConfigSection(rt: {
                   children: [
                     t('marginY'),
                     field('marginY', cur.position.marginY, (v) => updateSel({ position: { marginY: v } }), '120px'),
+                  ],
+                }),
+                h('label', {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    fontSize: '12px',
+                    color: 'var(--dsw-alias-label-secondary)',
+                  },
+                  children: [
+                    t('balanceEnabled'),
+                    h('input', {
+                      type: 'checkbox',
+                      checked: !!cur.balanceEnabled,
+                      disabled: busy,
+                      onChange: (e: ChangeEvent<HTMLInputElement>) => updateSel({ balanceEnabled: e.target.checked }),
+                      style: { width: '16px', height: '16px', accentColor: 'var(--dsw-alias-state-business-primary)' },
+                    }),
+                    h('span', {
+                      style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)' },
+                      children: t('balanceEnabledHint'),
+                    }),
                   ],
                 }),
                 h('button', {

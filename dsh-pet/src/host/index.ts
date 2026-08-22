@@ -117,13 +117,15 @@ function sanitizeUserConfig(raw: unknown): { pets: unknown[] } | null {
     if (!id || id.length > 64 || /[\\/:\x00-\x1f]/.test(id)) return null;
     const size = Number(pp.size);
     if (!Number.isFinite(size) || size <= 0) return null;
+    const balanceEnabled = pp.balanceEnabled;
+    if (typeof balanceEnabled !== 'boolean') return null;
     const pos = pp.position && typeof pp.position === 'object' ? (pp.position as Record<string, unknown>) : {};
     const corner = String(pos.corner ?? '');
     if (!CORNERS.includes(corner)) return null;
     const marginX = Number(pos.marginX);
     const marginY = Number(pos.marginY);
     if (!Number.isFinite(marginX) || !Number.isFinite(marginY)) return null;
-    out.push({ id, size, position: { corner, marginX, marginY } });
+    out.push({ id, size, balanceEnabled, position: { corner, marginX, marginY } });
   }
   return { pets: out };
 }
@@ -166,7 +168,8 @@ export function apply(ctx: any): void {
                 const clean = sanitizeUserConfig(parsed);
                 if (!clean) {
                   sendJson(res, 400, {
-                    error: 'invalid pet config: expected { pets:[{id,size,position:{corner,marginX,marginY}}] }',
+                    error:
+                      'invalid pet config: expected { pets:[{id,size,balanceEnabled,position:{corner,marginX,marginY}}] }',
                   });
                   return;
                 }
