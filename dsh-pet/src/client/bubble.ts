@@ -1,6 +1,6 @@
 // 余额气泡（client 半侧）：展示当前服务商余额/用量。哑组件——数据由上层传入，
 // 自身不发起请求；工厂形态与 pet.ts 一致（react 由 DSH 运行时注入）。
-import { urgentWindow, resetInText } from './balance';
+import { urgentWindow, resetInText, deepseekPricingTier } from './balance';
 import type { BalanceState } from './balance';
 import type { ReactNode } from 'react';
 import type { jsx } from 'react/jsx-runtime';
@@ -33,6 +33,10 @@ const bubbleCss = [
   '.dsh-pet-bubble .pet-bub-err{color:#d94f3d;font-size:calc(var(--dsh-pet-size)*0.035)}',
   '.dsh-pet-bubble .pet-bub-tag{margin-left:calc(var(--dsh-pet-size)*0.013);font-size:calc(var(--dsh-pet-size)*0.022);color:rgba(43,43,43,.55);border:1px solid rgba(43,43,43,.25);' +
     'border-radius:calc(var(--dsh-pet-size)*0.013);padding:0 calc(var(--dsh-pet-size)*0.009);vertical-align:1px}',
+  // 峰/谷计价档位标注：峰红、谷绿
+  '.dsh-pet-bubble .pet-bub-tier{font-weight:700}',
+  '.dsh-pet-bubble .pet-bub-tier-peak{color:#e53935}',
+  '.dsh-pet-bubble .pet-bub-tier-idle{color:#2e9e4f}',
 ].join('\n');
 
 /** 只注入一次 */
@@ -70,8 +74,23 @@ export function makeBalanceBubble(rt: { h: typeof jsx }): (props: { state: Balan
           rows.push(h('div', { className: 'pet-bub-row', children: '额度数据不可用' }));
         }
       } else {
-        // DeepSeek：单行「余额 ¥x.xx」（中间一个空格，不做样式间隔），不显示服务商、不显示"总额"标签
-        rows.push(h('div', { className: 'pet-bub-row', children: '余额 ¥' + (state.total ?? '-') }));
+        // DeepSeek：单行「余额（峰/谷）¥x.xx」——按北京时间峰谷价档上色（峰红/谷绿）
+        const tier = deepseekPricingTier();
+        rows.push(
+          h('div', {
+            className: 'pet-bub-row',
+            children: h('span', {
+              children: [
+                '余额（',
+                h('span', {
+                  className: 'pet-bub-tier pet-bub-tier-' + tier,
+                  children: tier === 'peak' ? '峰' : '谷',
+                }),
+                '）¥' + (state.total ?? '-'),
+              ],
+            }),
+          }),
+        );
       }
     } else {
       // 显式展示不可用原因，绝不伪造数字
