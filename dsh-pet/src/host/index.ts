@@ -22,11 +22,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
+import { credentialRef } from '@deepseek-ai/dsh-credentials';
+import { queryBalance, type BalanceResult } from './balance';
 
 /** 插件行 id（与 cordis.patch.yml 一致） */
 export const name = 'pet';
-/** 需要注入的服务：webServer（Web 服务器路由注册表） */
-export const inject = ['webServer'];
+/** 需要注入的服务：webServer（Web 服务器路由注册表）+ agentDefaultModel（当前服务商）+ credentials（凭证解析） */
+export const inject = ['webServer', 'agentDefaultModel', 'credentials'];
 
 /** 本包目录：宿主构建产物位于 lib/，其上一级即包根。 */
 const PACKAGE_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -41,6 +43,9 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.json': 'application/json; charset=utf-8',
   '.jsonc': 'application/json; charset=utf-8',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
 };
 
 /**
@@ -196,6 +201,31 @@ export function apply(ctx: any): void {
             return;
           }
 
+          // 余额查询（client 定时/手动拉取；结果由 host 侧完成全部抓取与校验，client 不接触 key）
+          if (rest === 'balance') {
+            if (req.method !== 'GET') {
+              sendJson(res, 405, { error: 'method not allowed' });
+              return;
+            }
+            try {
+              const sel = ctx.agentDefaultModel.currentSelection();
+              const result: BalanceResult = await queryBalance(sel.provider, async (ref) => {
+                const rc = await ctx.credentials.resolve(credentialRef(ref));
+                return rc?.value;
+              });
+              sendJson(res, 200, result);
+            } catch (e) {
+              // 意外异常（如注入服务缺失）：显式 500，不静默
+              sendJson(res, 500, {
+                ok: false,
+                provider: 'unknown',
+                reason: 'fetch-error',
+                message: e instanceof Error ? e.message : String(e),
+              });
+            }
+            return;
+          }
+
           // 配置文件（JSONC）：/pet/config.jsonc → 包内 assets/config.jsonc
           if (rest === 'config.jsonc') {
             const cfgFile = join(PACKAGE_ROOT, 'assets', 'config.jsonc');
@@ -208,8 +238,22 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 动画文件：/pet/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
+          // 字体文件：/pet/font/<file> → 包内 assets/fonts
           const [scope, ...nameParts] = rest.split('/');
+          if (scope === 'font') {
+            const fontRoot = join(PACKAGE_ROOT, 'assets', 'fonts');
+            const fontFile = resolveExisting(fontRoot, nameParts.join('/'));
+            if (fontFile === undefined) {
+              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+              res.end('dsh-pet: font not found');
+              return;
+            }
+            const ext = fontFile.slice(fontFile.lastIndexOf('.')).toLowerCase();
+            await sendFile(res, fontFile, MIME[ext] ?? 'application/octet-stream');
+            return;
+          }
+
+          // 动画文件：/pet/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
           if (scope !== 'thumb') {
             res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
             res.end('dsh-pet: expected /pet/thumb/<file>');

@@ -5,6 +5,8 @@
 import { pick, rollKind, pickCategoryAction } from './pickers';
 import { planMove } from './motion';
 import { assertClientConfig, EMPTY_CONF, applyUserOverrides, stripJsonc, type UserOverrides } from './config';
+import { balanceEventIndex, balancePercent, fetchBalanceState, type BalanceState } from './balance';
+import { makeBalanceBubble } from './bubble';
 import { CANVAS_H, FEET_Y, HIT_BOX, DRAG_THRESHOLD } from './constants';
 import { petBridge } from './settings';
 import type { ClientConfig, Corner, Pet } from './types';
@@ -14,6 +16,9 @@ import type { jsx } from 'react/jsx-runtime';
 
 /** 运行时配置（PetMulti 加载后赋值；PetCard 只读） */
 let config: ClientConfig = EMPTY_CONF;
+
+/** 余额气泡展示时长（ms）：定时自动消失，与动画生命周期解耦 */
+const BUBBLE_DURATION_MS = 10 * 1000;
 
 /** 内联 CSS —— 注入一次（官方插件标准做法） */
 const css = [
@@ -54,8 +59,11 @@ export function makePetUI(rt: {
   const { h, useState, useEffect, useRef } = rt;
   injectCss();
 
+  /** 余额气泡（哑组件：数据与显隐由 PetCard 传入） */
+  const BalanceBubble = makeBalanceBubble({ h });
+
   /** 单个宠物实例（配置由容器 PetMulti 传入） */
-  function PetCard({ cfg }: { cfg: Pet }) {
+  function PetCard({ cfg, balance, balanceTick }: { cfg: Pet; balance: BalanceState | null; balanceTick: number }) {
     // ---- 尺寸（由配置传入；容器/设置页更新后即时跟随）----
     const [size, setSize] = useState(cfg.size);
     const halfW = size / 2;
@@ -70,6 +78,9 @@ export function makePetUI(rt: {
     // 初始角落与边距（来自配置；可被容器更新覆盖）
     const [corner, setCorner] = useState<Corner>(cfg.position.corner);
     const [margin, setMargin] = useState({ x: cfg.position.marginX, y: cfg.position.marginY });
+    // 余额气泡显隐（事件触发时显示，10s 后定时自动消失）
+    const [bubbleOn, setBubbleOn] = useState(false);
+    const bubbleTimerRef = useRef<number | null>(null);
 
     // 配置变化即时跟随（容器重新合并 / 设置页保存后通过 petBridge.sync 触发）
     useEffect(() => {
@@ -132,6 +143,53 @@ export function makePetUI(rt: {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [anim, once, seq]);
     useEffect(() => () => stopMove(), []);
+    useEffect(
+      () => () => {
+        if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+      },
+      [],
+    );
+    // 余额事件：容器拉取成功后递增 balanceTick → 按档位播放事件动画 + 弹气泡
+    // （仅余额数据有效时触发；无效/不支持按设计不触发动画，错误由容器侧显式上报）
+    const prevTickRef = useRef(0);
+    useEffect(() => {
+      if (balanceTick === 0 || balanceTick === prevTickRef.current) return;
+      prevTickRef.current = balanceTick;
+      if (!balance || !balance.ok) return;
+      const p = balancePercent(balance);
+      if (p === undefined) return; // 当前数据源没有百分比语义（如 DeepSeek 余额），不触发档位动画
+      const pool = config.animations.events?.balance;
+      if (!pool || pool.length === 0) {
+        console.error('[dsh-pet] 配置缺少 animations.events.balance，无法播放余额事件动画');
+        return;
+      }
+      const idx = balanceEventIndex(p);
+      const name = pool[idx];
+      if (!name) {
+        console.error('[dsh-pet] balance 档位索引越界：p=' + p + ' idx=' + idx);
+        return;
+      }
+      console.log(
+        '[dsh-pet] ' +
+          new Date().toTimeString().slice(0, 8) +
+          ' balance pet=' +
+          cfg.id +
+          ' p=' +
+          p.toFixed(1) +
+          '% -> [档' +
+          idx +
+          '] ' +
+          name,
+      );
+      stopMove();
+      setBubbleOn(true);
+      // 气泡 10s 定时消失（与动画解耦：即使动画被点击/拖拽打断，气泡也按时收起；重复触发先清旧定时器）
+      if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+      bubbleTimerRef.current = window.setTimeout(() => setBubbleOn(false), BUBBLE_DURATION_MS);
+      setOnce(true);
+      setAnim(name);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [balanceTick]);
     useEffect(() => {
       const onResize = () => setCustomPos((prev) => (prev ? { ...prev } : prev));
       window.addEventListener('resize', onResize);
@@ -190,6 +248,14 @@ export function makePetUI(rt: {
     const handleEnded = () => {
       const { animations } = config;
       if (dragRef.current.active) return;
+      // 事件动画播完：回 idle（与 drag/clicks 同分支，不进入随机链）；气泡由定时器自动消失，与动画解耦
+      const isEvent = Object.values(animations.events ?? {}).some((pool) => pool.includes(animRef.current));
+      if (isEvent) {
+        if (animations.idle.length) setAnim(pick(animations.idle, animRef.current));
+        setOnce(true);
+        setSeq((s) => s + 1);
+        return;
+      }
       if (animations.turn.includes(animRef.current)) {
         const next = facing === 'left' ? 'right' : 'left';
         setFacing(next);
@@ -371,7 +437,6 @@ export function makePetUI(rt: {
     const handleClick = () => {
       const d = dragRef.current;
       if (d.active || d.dragging || justDraggedRef.current) return;
-      if (once && !config.animations.idle.includes(animRef.current)) return;
       stopMove();
       setOnce(true);
       if (config.animations.clicks.length) setAnim(pick(config.animations.clicks));
@@ -420,16 +485,20 @@ export function makePetUI(rt: {
         { '--dsh-pet-size': size + 'px', '--dsh-pet-mx': margin.x + 'px', '--dsh-pet-my': margin.y + 'px' },
         rootStyle,
       ),
-      children: h('div', {
-        ref: stageRef,
-        className: 'dsh-pet-stage',
-        style: stageStyle,
-        children: [
-          h('video', Object.assign({}, commonVideoProps, { ref: videoARef, className: 'dsh-pet-video is-front' })),
-          h('video', Object.assign({}, commonVideoProps, { ref: videoBRef, className: 'dsh-pet-video' })),
-          h('div', hitProps),
-        ],
-      }),
+      children: [
+        // 余额气泡（仅数据有效时渲染；显示与否由 bubbleOn 控制）
+        balance && balance.ok ? h(BalanceBubble, { state: balance, on: bubbleOn }) : null,
+        h('div', {
+          ref: stageRef,
+          className: 'dsh-pet-stage',
+          style: stageStyle,
+          children: [
+            h('video', Object.assign({}, commonVideoProps, { ref: videoARef, className: 'dsh-pet-video is-front' })),
+            h('video', Object.assign({}, commonVideoProps, { ref: videoBRef, className: 'dsh-pet-video' })),
+            h('div', hitProps),
+          ],
+        }),
+      ],
     });
   }
 
@@ -437,6 +506,9 @@ export function makePetUI(rt: {
   function PetMulti() {
     const [pets, setPets] = useState<Pet[]>([]);
     const [ready, setReady] = useState(false);
+    // 余额状态（容器统一拉取，PetCard 共享；balanceTick 每次成功拉取递增，驱动事件动画）
+    const [balance, setBalance] = useState<BalanceState | null>(null);
+    const [balanceTick, setBalanceTick] = useState(0);
 
     useEffect(() => {
       let alive = true;
@@ -454,7 +526,9 @@ export function makePetUI(rt: {
           } catch {
             /* 无用户层时忽略 */
           }
-          config = applyUserOverrides(config, user);
+          // 合并后统一校验：用户层覆盖可能缺字段（如 moves/events），直接整体替换会静默丢失，
+          // 这里对最终配置再跑一遍 assertClientConfig —— 缺失即显式报错，不静默运行残缺配置
+          config = assertClientConfig(applyUserOverrides(config, user));
           const merged = config.pets;
           if (!alive) return;
           petBridge.current = merged;
@@ -475,7 +549,36 @@ export function makePetUI(rt: {
       };
     }, []);
 
-    return ready ? pets.map((p) => h(PetCard, { key: p.id, cfg: p })) : null;
+    // 余额轮询：配置就绪（ready）后启动拉取一次，之后按 eventsRefreshSec.balance（秒）周期刷新；
+    // 成功递增 balanceTick 触发事件动画；失败/不支持均不触发动画（错误显式 console.error，绝不显示伪造余额）
+    useEffect(() => {
+      if (!ready) return; // 配置未就绪不启动：刷新间隔需读合并后的 eventsRefreshSec
+      let alive = true;
+      const refresh = async () => {
+        try {
+          const state = await fetchBalanceState();
+          if (!alive) return;
+          setBalance(state);
+          if (state.ok) setBalanceTick((t) => t + 1);
+          else if (state.reason === 'unsupported') {
+            /* 无匹配服务商：按设计不显示、不播动画 */
+          } else {
+            console.error('[dsh-pet] 余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''));
+          }
+        } catch (e) {
+          if (alive) console.error('[dsh-pet] 余额拉取异常', e);
+        }
+      };
+      void refresh();
+      const intervalMs = Math.max(1000, (config.eventsRefreshSec?.balance ?? 1800) * 1000);
+      const timer = window.setInterval(() => void refresh(), intervalMs);
+      return () => {
+        alive = false;
+        window.clearInterval(timer);
+      };
+    }, [ready]);
+
+    return ready ? pets.map((p) => h(PetCard, { key: p.id, cfg: p, balance, balanceTick })) : null;
   }
 
   return PetMulti;

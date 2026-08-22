@@ -25,6 +25,9 @@ export interface Category {
   actions: string[];
 }
 
+/** 事件动画：事件名 → 动画名数组（数组顺序 = 档位顺序；不进随机链，只由代码显式触发） */
+export type Events = Record<string, string[]>;
+
 /** 动画权重 */
 export interface Weights {
   idle: number;
@@ -40,6 +43,7 @@ export interface Animations {
   clicks: string[];
   moves: MovesConfig;
   categories: Category[];
+  events: Events;
 }
 
 /** 一只宠物（与 jsonc pets[i] 同形，position 嵌套） */
@@ -54,4 +58,6 @@ export interface ClientConfig {
   pets: Pet[];
   animations: Animations;
   animationWeights: Weights;
+  /** 事件刷新周期（秒）：事件名 → 间隔；balance = 余额数据刷新 + 动画触发间隔 */
+  eventsRefreshSec: Record<string, number>;
 }

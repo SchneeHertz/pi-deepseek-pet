@@ -17,8 +17,17 @@ const CORNER_SET: ReadonlySet<string> = new Set(CORNERS);
 /** ClientConfig 类型占位（data-less；PetMulti 加载后由 assertClientConfig 赋真实值） */
 export const EMPTY_CONF: ClientConfig = {
   pets: [],
-  animations: { idle: [], turn: [], drag: [], clicks: [], moves: { default: {}, actions: [] }, categories: [] },
+  animations: {
+    idle: [],
+    turn: [],
+    drag: [],
+    clicks: [],
+    moves: { default: {}, actions: [] },
+    categories: [],
+    events: {},
+  },
   animationWeights: { idle: 0, turn: 0, move: 0 },
+  eventsRefreshSec: {},
 };
 
 /** 校验 config.jsonc 解析结果并返回 ClientConfig；任一字段缺失/非法即视为配置错误抛出 */
@@ -64,6 +73,25 @@ export function assertClientConfig(raw: unknown): ClientConfig {
   }
   if (!Array.isArray(a.categories)) throw new Error('dsh-pet: animations.categories 缺失');
 
+  // ---- animations.events（事件动画：事件名 → 非空 string 数组，数组顺序即档位顺序）----
+  // 事件功能已内置：events 段与 balance 事件均为必需，缺失即配置不完整，显式报错
+  const ev = a.events;
+  if (!ev || typeof ev !== 'object' || Array.isArray(ev)) throw new Error('dsh-pet: 缺少 animations.events');
+  for (const [eventName, pool] of Object.entries(ev)) {
+    if (!Array.isArray(pool) || pool.length === 0) {
+      throw new Error('dsh-pet: animations.events.' + eventName + ' 必须是非空动画名数组');
+    }
+    for (const name of pool) {
+      if (typeof name !== 'string' || name.length === 0) {
+        throw new Error('dsh-pet: animations.events.' + eventName + ' 含非法动画名');
+      }
+    }
+  }
+  const balance = ev.balance;
+  if (!Array.isArray(balance) || balance.length === 0) {
+    throw new Error('dsh-pet: animations.events.balance 缺失或为空（余额事件必备）');
+  }
+
   // ---- animationWeights ----
   const w = cfg.animationWeights;
   if (!w || typeof w !== 'object') throw new Error('dsh-pet: 缺少 animationWeights');
@@ -73,7 +101,21 @@ export function assertClientConfig(raw: unknown): ClientConfig {
     w[key] = v;
   }
 
-  return { pets, animations: a, animationWeights: w };
+  // ---- eventsRefreshSec（事件刷新周期：事件名 → 正数秒数）----
+  // 事件功能已内置：周期段与 balance 周期均为必需，缺失/非法即配置不完整，显式报错
+  const ers = cfg.eventsRefreshSec;
+  if (!ers || typeof ers !== 'object' || Array.isArray(ers)) throw new Error('dsh-pet: 缺少 eventsRefreshSec');
+  const cleaned: Record<string, number> = {};
+  for (const [eventName, sec] of Object.entries(ers)) {
+    const n = Number(sec);
+    if (!Number.isFinite(n) || n <= 0)
+      throw new Error('dsh-pet: eventsRefreshSec.' + eventName + ' 非法（需为正数秒）');
+    cleaned[eventName] = n;
+  }
+  const balanceSec = cleaned.balance;
+  if (balanceSec === undefined) throw new Error('dsh-pet: eventsRefreshSec.balance 缺失（余额事件周期必备）');
+
+  return { pets, animations: a, animationWeights: w, eventsRefreshSec: cleaned };
 }
 
 /** 合并宠物：用户层（{ pets }，与 jsonc 同构）全量替换默认；无用户层回落默认 */
@@ -87,12 +129,14 @@ export interface UserOverrides {
   pets?: Pet[];
   animations?: Animations;
   animationWeights?: Weights;
+  eventsRefreshSec?: Record<string, number>;
 }
 
-/** 合并用户覆盖片段到完全体配置：pets / animations / animationWeights 有则整体替换，缺省回落默认 */
+/** 合并用户覆盖片段到完全体配置：pets / animations / animationWeights / eventsRefreshSec 有则整体替换，缺省回落默认 */
 export function applyUserOverrides(base: ClientConfig, user: UserOverrides): ClientConfig {
   const next: ClientConfig = { ...base, pets: resolvePets(base.pets, user) };
   if (user.animations) next.animations = user.animations;
   if (user.animationWeights) next.animationWeights = user.animationWeights;
+  if (user.eventsRefreshSec) next.eventsRefreshSec = user.eventsRefreshSec;
   return next;
 }
