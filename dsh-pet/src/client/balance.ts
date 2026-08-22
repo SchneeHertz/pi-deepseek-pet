@@ -1,8 +1,8 @@
-// 余额数据层（client 半侧）：拉取 /pet/balance → 解析 → 档位计算。
+// 余额数据层（client 半侧）：拉取 /dsh-pet-7340/balance → 解析 → 档位计算。
 // 纯逻辑模块（不依赖 React/DOM），可独立单测；与 host/balance.ts 的 BalanceResult 结构同构
 // （HTTP 契约两端各自声明，避免 client 打包跨层 import host）。
 
-/** /pet/balance 响应（与 host/balance.ts 同构；client 按此结构校验） */
+/** /dsh-pet-7340/balance 响应（与 host/balance.ts 同构；client 按此结构校验） */
 export interface RawBalanceResult {
   ok: boolean;
   provider?: string;
@@ -73,9 +73,9 @@ async function getWithRetry(url: string): Promise<Response> {
 
 /** 拉取当前状态的余额；网络/解析失败显式抛错（上层决定报错方式，绝不静默 0） */
 export async function fetchBalanceState(): Promise<BalanceState> {
-  const res = await getWithRetry('/pet/balance');
+  const res = await getWithRetry('/dsh-pet-7340/balance');
   const raw: RawBalanceResult = await res.json().catch(() => null);
-  if (!raw || typeof raw !== 'object') throw new Error('dsh-pet: /pet/balance 响应非法');
+  if (!raw || typeof raw !== 'object') throw new Error('dsh-pet: /dsh-pet-7340/balance 响应非法');
 
   const provider = String(raw.provider ?? 'unknown');
   if (raw.ok !== true) {
@@ -88,12 +88,12 @@ export async function fetchBalanceState(): Promise<BalanceState> {
 
   if (raw.kind === 'opencode') {
     const d = raw.data;
-    if (!d || typeof d !== 'object') throw new Error('dsh-pet: /pet/balance opencode 数据非法');
+    if (!d || typeof d !== 'object') throw new Error('dsh-pet: /dsh-pet-7340/balance opencode 数据非法');
     const rolling = Number(d.rolling);
     const weekly = Number(d.weekly);
     const monthly = Number(d.monthly);
     if (![rolling, weekly, monthly].every(Number.isFinite))
-      throw new Error('dsh-pet: /pet/balance opencode 百分比非数字');
+      throw new Error('dsh-pet: /dsh-pet-7340/balance opencode 百分比非数字');
     return {
       provider,
       kind: 'opencode',
@@ -108,7 +108,7 @@ export async function fetchBalanceState(): Promise<BalanceState> {
   }
   if (raw.kind === 'deepseek') {
     const d = raw.data;
-    if (!d || typeof d !== 'object') throw new Error('dsh-pet: /pet/balance deepseek 数据非法');
+    if (!d || typeof d !== 'object') throw new Error('dsh-pet: /dsh-pet-7340/balance deepseek 数据非法');
     return {
       provider,
       kind: 'deepseek',
@@ -119,7 +119,7 @@ export async function fetchBalanceState(): Promise<BalanceState> {
       toppedUp: typeof d.toppedUp === 'string' ? d.toppedUp : undefined,
     };
   }
-  throw new Error('dsh-pet: /pet/balance kind 非法');
+  throw new Error('dsh-pet: /dsh-pet-7340/balance kind 非法');
 }
 
 /** DeepSeek 满额基准（¥）：余额 ≥ 该值视为 100%（未消耗），余额按比例折算为已用百分比 */

@@ -1,15 +1,15 @@
 /**
  * dsh-pet 宿主半侧（host half）—— 宠物插件的"后端"部分
  *
- * 职责：在 DSH Web 服务器上注册 `/pet/` 前缀路由，把宠物动画 WebM / 配置 JSONC
+ * 职责：在 DSH Web 服务器上注册 `/dsh-pet-7340/` 前缀路由，把宠物动画 WebM / 配置 JSONC
  * 流式返回给浏览器。源文件（src/host/index.ts）由 tsdown 构建为 lib/index.js。
  *
  * 路由：
- *   /pet/thumb/<动画名>.webm  → $DSH_HOME/dsh-pet/main-animation/（用户目录，优先）→ 插件包内 assets/thumb/
- *   /pet/config.jsonc        → 插件包内 assets/config.jsonc（默认值，只读）
- *   /pet/config              → 用户覆盖配置（pets / animations / animationWeights，JSON）
+ *   /dsh-pet-7340/thumb/<动画名>.webm  → $DSH_HOME/dsh-pet/main-animation/（用户目录，优先）→ 插件包内 assets/thumb/
+ *   /dsh-pet-7340/config.jsonc        → 插件包内 assets/config.jsonc（默认值，只读）
+ *   /dsh-pet-7340/config              → 用户覆盖配置（pets / animations / animationWeights，JSON）
  *                                GET 读取、PUT 保存、DELETE 恢复默认（删除用户层）
- *   /pet/config/meta         → 配置文件与素材目录路径（设置页展示用）
+ *   /dsh-pet-7340/config/meta         → 配置文件与素材目录路径（设置页展示用）
  *
  * 安全性：resolveAsset 做"防穿越"校验，保证路径仍在对应根目录内。
  *
@@ -34,7 +34,7 @@ export const inject = ['webServer', 'agentDefaultModel', 'credentials', 'command
 const PACKAGE_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 /** 路由前缀 */
-const ROUTE_PREFIX = '/pet';
+const ROUTE_PREFIX = '/dsh-pet-7340';
 
 /** 不同扩展名对应的 Content-Type 映射 */
 const MIME: Record<string, string> = {
@@ -130,7 +130,7 @@ function sanitizeUserConfig(raw: unknown): { pets: unknown[] } | null {
   return { pets: out };
 }
 
-/** 宿主插件主体：注册 `/pet` 前缀路由。 */
+/** 宿主插件主体：注册 `/dsh-pet-7340` 前缀路由。 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入的 ctx（webServer/locale 等 service 无静态类型）
 export function apply(ctx: any): void {
   const thumbRoot = join(PACKAGE_ROOT, 'assets', 'thumb');
@@ -152,7 +152,7 @@ export function apply(ctx: any): void {
           const url = new URL(req.url ?? '/', 'http://localhost');
           const rest = decodeURIComponent(url.pathname.slice(ROUTE_PREFIX.length + 1));
 
-          // 用户覆盖配置：/pet/config（GET / PUT / DELETE）
+          // 用户覆盖配置：/dsh-pet-7340/config（GET / PUT / DELETE）
           if (rest === 'config') {
             if (req.method === 'GET') {
               try {
@@ -231,7 +231,7 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 手动触发计数：/pet/balance/trigger（no-cache，client 轻量轮询；/balance 命令写入）
+          // 手动触发计数：/dsh-pet-7340/balance/trigger（no-cache，client 轻量轮询；/balance 命令写入）
           if (rest === 'balance/trigger') {
             const body = JSON.stringify({ count: balanceTriggerCount });
             res.writeHead(200, {
@@ -243,7 +243,7 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 配置文件（JSONC）：/pet/config.jsonc → 包内 assets/config.jsonc
+          // 配置文件（JSONC）：/dsh-pet-7340/config.jsonc → 包内 assets/config.jsonc
           if (rest === 'config.jsonc') {
             const cfgFile = join(PACKAGE_ROOT, 'assets', 'config.jsonc');
             if (!existsSync(cfgFile)) {
@@ -255,7 +255,7 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 字体文件：/pet/font/<file> → 包内 assets/fonts
+          // 字体文件：/dsh-pet-7340/font/<file> → 包内 assets/fonts
           const [scope, ...nameParts] = rest.split('/');
           if (scope === 'font') {
             const fontRoot = join(PACKAGE_ROOT, 'assets', 'fonts');
@@ -270,10 +270,10 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 动画文件：/pet/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
+          // 动画文件：/dsh-pet-7340/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
           if (scope !== 'thumb') {
             res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
-            res.end('dsh-pet: expected /pet/thumb/<file>');
+            res.end('dsh-pet: expected /dsh-pet-7340/thumb/<file>');
             return;
           }
           const fileName = nameParts.join('/');
@@ -287,7 +287,7 @@ export function apply(ctx: any): void {
           await sendFile(res, file, MIME[ext] ?? 'application/octet-stream');
         },
       }),
-    'dsh-pet: /pet asset route',
+    'dsh-pet: /dsh-pet-7340 asset route',
   );
 
   // /balance 斜杠命令：递增触发计数 → client 检测到变化后立即刷新余额并播动画（不进模型历史）

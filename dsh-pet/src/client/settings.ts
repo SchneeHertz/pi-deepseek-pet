@@ -2,7 +2,7 @@
  * 桌宠配置管理设置页（settings.section 插槽，id: pet-config）
  *
  * - 多开：管理多个桌宠，每个宠物独立 id/size/位置（corner + marginX/Y）
- * - 数据流：设置页持有「合并后的完整宠物列表」→ 保存时全量 PUT /pet/config
+ * - 数据流：设置页持有「合并后的完整宠物列表」→ 保存时全量 PUT /dsh-pet-7340/config
  *   （用户覆盖层 = 完整列表，加载时全量替换默认，天然支持增删）
  * - 即时生效：保存/恢复默认后调用 petBridge.sync 通知容器重新渲染，无需刷新页面
  *
@@ -166,7 +166,7 @@ export function makePetConfigSection(rt: {
     // 配置文件地址（「高级配置」区块；读取失败仅缺省不显示，不影响表单）
     const [paths, setPaths] = useState<null | { user: string; default: string; animations: string }>(null);
     useEffect(() => {
-      fetch('/pet/config/meta')
+      fetch('/dsh-pet-7340/config/meta')
         .then((r) => (r.ok ? r.json() : null))
         .then((p) => setPaths(p))
         .catch(() => console.warn('[dsh-pet] 读取配置文件路径失败'));
@@ -206,7 +206,7 @@ export function makePetConfigSection(rt: {
       setBusy(true);
       setMsg({ kind: '', text: '' });
       try {
-        const res = await fetch('/pet/config', {
+        const res = await fetch('/dsh-pet-7340/config', {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ pets: pets }),
@@ -228,8 +228,8 @@ export function makePetConfigSection(rt: {
       setBusy(true);
       setMsg({ kind: '', text: '' });
       try {
-        await fetch('/pet/config', { method: 'DELETE' });
-        const defRes = await fetch('/pet/config.jsonc');
+        await fetch('/dsh-pet-7340/config', { method: 'DELETE' });
+        const defRes = await fetch('/dsh-pet-7340/config.jsonc');
         const defs = assertClientConfig(JSON.parse(stripJsonc(await defRes.text()))).pets;
         setPets(defs.map((p) => ({ ...p, position: { ...p.position } })));
         setSelId(defs[0]?.id ?? '');

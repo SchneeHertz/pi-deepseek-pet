@@ -8,7 +8,7 @@
  *   在 import 本包时获得智能提示和类型检查。纯类型文件，不影响运行时。
  *
  * 【对应实现】
- *   lib/index.js —— 注册 /pet/ 前缀路由，向浏览器提供动画 WebM 文件。
+ *   lib/index.js —— 注册 /dsh-pet-7340/ 前缀路由，向浏览器提供动画 WebM 文件。
  *
  * ============================================================================
  * @module dsh-pet
@@ -22,7 +22,7 @@ export declare const name = 'pet';
 export declare const inject: string[];
 
 /**
- * 宿主插件主体：注册 /pet 前缀路由。
+ * 宿主插件主体：注册 /dsh-pet-7340 前缀路由。
  * @param ctx - 插件上下文；ctx.webServer 是 Web 服务器服务
  */
 export declare function apply(ctx: Context): void;

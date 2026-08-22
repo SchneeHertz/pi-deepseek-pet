@@ -112,7 +112,7 @@ export function makePetUI(rt: {
       const target = frontRef.current === 0 ? videoBRef : videoARef;
       const el = target.current;
       if (!el) return;
-      el.src = '/pet/thumb/' + encodeURIComponent(next) + '.webm';
+      el.src = '/dsh-pet-7340/thumb/' + encodeURIComponent(next) + '.webm';
       el.loop = !nextOnce;
       el.muted = true;
       el.autoplay = true;
@@ -536,14 +536,14 @@ export function makePetUI(rt: {
       let alive = true;
       (async () => {
         try {
-          const r1 = await fetch('/pet/config.jsonc');
+          const r1 = await fetch('/dsh-pet-7340/config.jsonc');
           if (!r1.ok) throw new Error('config.jsonc HTTP ' + r1.status);
           config = assertClientConfig(JSON.parse(stripJsonc(await r1.text())));
           const defaults = config.pets;
           // 用户覆盖层（覆盖片段：pets / animations / animationWeights，缺省回落默认）
           let user: UserOverrides = {};
           try {
-            const r2 = await fetch('/pet/config');
+            const r2 = await fetch('/dsh-pet-7340/config');
             if (r2.ok && r2.status !== 204) user = await r2.json().catch(() => ({}));
           } catch {
             /* 无用户层时忽略 */
@@ -571,7 +571,7 @@ export function makePetUI(rt: {
       };
     }, []);
 
-    // 是否存在启用余额功能的宠物：全禁用时跳过余额轮询（不拉取 /pet/balance，避免无意义的周期请求）
+    // 是否存在启用余额功能的宠物：全禁用时跳过余额轮询（不拉取 /dsh-pet-7340/balance，避免无意义的周期请求）
     const anyBalanceEnabled = pets.some((p) => p.balanceEnabled);
 
     // 余额轮询：配置就绪（ready）且至少一只宠物启用余额后启动拉取一次，之后按 eventsRefreshSec.balance（秒）周期刷新；
@@ -611,7 +611,7 @@ export function makePetUI(rt: {
       let prev = -1;
       const poll = async () => {
         try {
-          const r = await fetch('/pet/balance/trigger');
+          const r = await fetch('/dsh-pet-7340/balance/trigger');
           if (!alive || !r.ok) return;
           const data = await r.json().catch(() => null);
           const count = data && typeof data.count === 'number' ? data.count : -1;
