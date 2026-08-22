@@ -27,8 +27,8 @@ import { queryBalance, type BalanceResult } from './balance';
 
 /** 插件行 id（与 cordis.patch.yml 一致） */
 export const name = 'pet';
-/** 需要注入的服务：webServer（Web 服务器路由注册表）+ agentDefaultModel（当前服务商）+ credentials（凭证解析） */
-export const inject = ['webServer', 'agentDefaultModel', 'credentials'];
+/** 需要注入的服务：webServer（路由）+ agentDefaultModel（当前服务商）+ credentials（凭证）+ commands（/balance 斜杠命令） */
+export const inject = ['webServer', 'agentDefaultModel', 'credentials', 'commands'];
 
 /** 本包目录：宿主构建产物位于 lib/，其上一级即包根。 */
 const PACKAGE_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -140,6 +140,8 @@ export function apply(ctx: any): void {
   const userConfigPath = join(userRoot, 'main-config.json');
   // 用户动画目录（thumb 播放时优先于包内 assets/thumb）
   const thumbUserRoot = join(userRoot, 'main-animation');
+  // 手动触发计数：/balance 命令 +1，client 轮询变化后立即刷新余额并播动画（进程内内存态，重启归零）
+  let balanceTriggerCount = 0;
 
   ctx.effect(
     () =>
@@ -229,6 +231,18 @@ export function apply(ctx: any): void {
             return;
           }
 
+          // 手动触发计数：/pet/balance/trigger（no-cache，client 轻量轮询；/balance 命令写入）
+          if (rest === 'balance/trigger') {
+            const body = JSON.stringify({ count: balanceTriggerCount });
+            res.writeHead(200, {
+              'content-type': 'application/json; charset=utf-8',
+              'cache-control': 'no-cache, no-store', // 触发计数必须实时，禁止任何缓存层介入
+              'content-length': Buffer.byteLength(body),
+            });
+            res.end(body);
+            return;
+          }
+
           // 配置文件（JSONC）：/pet/config.jsonc → 包内 assets/config.jsonc
           if (rest === 'config.jsonc') {
             const cfgFile = join(PACKAGE_ROOT, 'assets', 'config.jsonc');
@@ -274,5 +288,19 @@ export function apply(ctx: any): void {
         },
       }),
     'dsh-pet: /pet asset route',
+  );
+
+  // /balance 斜杠命令：递增触发计数 → client 检测到变化后立即刷新余额并播动画（不进模型历史）
+  ctx.effect(
+    () =>
+      ctx.commands.register({
+        name: 'balance',
+        description: '手动触发桌宠余额动画（立即显示余额气泡）',
+        handler: () => {
+          balanceTriggerCount += 1;
+          return { kind: 'success', text: '已触发桌宠余额动画' };
+        },
+      }),
+    'dsh-pet: /balance command',
   );
 }

@@ -603,6 +603,46 @@ export function makePetUI(rt: {
       };
     }, [ready, anyBalanceEnabled]);
 
+    // 手动 /balance 触发：3s 轻量轮询触发计数（host 端点响应头已禁止缓存），
+    // 计数变化且余额启用时立即刷新余额并递增 balanceTick（与周期轮询同一触发路径）
+    useEffect(() => {
+      if (!ready || !anyBalanceEnabled) return;
+      let alive = true;
+      let prev = -1;
+      const poll = async () => {
+        try {
+          const r = await fetch('/pet/balance/trigger');
+          if (!alive || !r.ok) return;
+          const data = await r.json().catch(() => null);
+          const count = data && typeof data.count === 'number' ? data.count : -1;
+          if (count < 0) return;
+          if (prev === -1) {
+            prev = count; // 首次仅记基线：避免页面加载时重放历史触发
+            return;
+          }
+          if (count === prev) return;
+          prev = count;
+          const state = await fetchBalanceState();
+          if (!alive) return;
+          setBalance(state);
+          if (state.ok) setBalanceTick((t) => t + 1);
+          else {
+            console.error(
+              '[dsh-pet] 手动触发余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''),
+            );
+          }
+        } catch {
+          /* 轻量轮询失败静默：下一周期再试 */
+        }
+      };
+      void poll();
+      const timer = window.setInterval(() => void poll(), 3000);
+      return () => {
+        alive = false;
+        window.clearInterval(timer);
+      };
+    }, [ready, anyBalanceEnabled]);
+
     return ready ? pets.map((p) => h(PetCard, { key: p.id, cfg: p, balance, balanceTick })) : null;
   }
 
