@@ -9,7 +9,7 @@
  * 样式对齐官方设置页：max-width 720px、全走 --dsw-alias-* 语义 token（主题跟随）。
  */
 import { assertClientConfig, stripJsonc } from './config';
-import { requestNotificationPermission } from './notify';
+import { NOTIFY_ICONS, reloadNotifications, requestNotificationPermission } from './notify';
 import type { Corner, Pet } from './types';
 import type { ChangeEvent, CSSProperties, Dispatch, FunctionComponent, SetStateAction, useEffect } from 'react';
 import type * as ReactNS from 'react';
@@ -228,6 +228,7 @@ export function makePetConfigSection(rt: {
         setNotifyEnabled(v);
         petBridge.current = pets;
         petBridge.sync(pets);
+        void reloadNotifications(); // 引擎重读开关：即时生效，无需刷新页面
         setMsg({ kind: 'ok', text: t('saved') });
       } catch {
         setMsg({ kind: 'err', text: t('loadError') });
@@ -254,7 +255,7 @@ export function makePetConfigSection(rt: {
       }
       try {
         // 成功即发一条测试通知验证链路（绕过聚焦门，直接确认）
-        new Notification('测试通知', { body: '【dsh-pet】系统通知已就绪。' });
+        new Notification('测试通知', { body: '【dsh-pet】系统通知已就绪。', icon: NOTIFY_ICONS.test });
       } catch {
         /* 个别环境构造失败：仍按已授权提示 */
       }

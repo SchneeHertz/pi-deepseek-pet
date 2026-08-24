@@ -177,6 +177,10 @@ What the pet looks like running inside the DSH Web UI:
 <p>
   <img src="assets/screenshots/dsh-pet-running-1.png" width="380" alt="dsh-pet running in DSH Web UI 1" title="dsh-pet running in DSH Web UI 1">
   <img src="assets/screenshots/dsh-pet-running-2.png" width="380" alt="dsh-pet running in DSH Web UI 2" title="dsh-pet running in DSH Web UI 2">
+  <img src="assets/screenshots/dsh-pet-running-3.png" width="380" alt="dsh-pet running in DSH Web UI 3" title="dsh-pet running in DSH Web UI 3">
+  <img src="assets/screenshots/dsh-pet-running-4.png" width="380" alt="dsh-pet running in DSH Web UI 4" title="dsh-pet running in DSH Web UI 4">
+  <img src="assets/screenshots/dsh-pet-running-5.png" width="380" alt="dsh-pet running in DSH Web UI 5" title="dsh-pet running in DSH Web UI 5">
+  <img src="assets/screenshots/dsh-pet-running-6.png" width="380" alt="dsh-pet running in DSH Web UI 6" title="dsh-pet running in DSH Web UI 6">
 </p>
 
 ## Animation Previews

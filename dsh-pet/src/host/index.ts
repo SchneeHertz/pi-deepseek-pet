@@ -274,6 +274,20 @@ export function apply(ctx: any): void {
             return;
           }
 
+          // 通知图标：/dsh-pet-7340/pic/<file> → 包内 assets/pic（方形 png，通知 icon 用）
+          if (scope === 'pic') {
+            const picRoot = join(PACKAGE_ROOT, 'assets', 'pic');
+            const picFile = resolveExisting(picRoot, nameParts.join('/'));
+            if (picFile === undefined) {
+              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+              res.end('dsh-pet: pic not found');
+              return;
+            }
+            const ext = picFile.slice(picFile.lastIndexOf('.')).toLowerCase();
+            await sendFile(res, picFile, MIME[ext] ?? 'application/octet-stream');
+            return;
+          }
+
           // 动画文件：/dsh-pet-7340/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
           if (scope !== 'thumb') {
             res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });

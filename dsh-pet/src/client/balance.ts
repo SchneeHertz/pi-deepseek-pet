@@ -135,8 +135,9 @@ export function balancePercent(v: BalanceView): number | undefined {
   if (v.kind === 'opencode') return Math.max(v.rolling ?? 0, v.weekly ?? 0, v.monthly ?? 0);
   if (v.kind === 'deepseek') {
     const total = Number(v.total);
-    if (!Number.isFinite(total) || total < 0) return undefined; // 金额非法：不触发（上层校验已兜底，此处双保险）
-    const remaining = (total / DEEPSEEK_FULL_BALANCE_CNY) * 100; // 剩余百分比 0~100+
+    if (!Number.isFinite(total)) return undefined; // 金额非法（非数字）：不触发（上层校验已兜底，此处双保险）
+    // 负数 = 透支，与 0 等价按「已用完」折算：-0.02 → 剩余 0 → 已用 100%（播「分文不剩」档）
+    const remaining = (Math.max(0, total) / DEEPSEEK_FULL_BALANCE_CNY) * 100; // 剩余百分比 0~100+
     return Math.max(0, Math.min(100, 100 - remaining)); // 折算为已用百分比
   }
   return undefined;

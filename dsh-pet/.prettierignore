@@ -3,3 +3,5 @@ node_modules
 assets
 cordis.patch.yml
 package-lock.json
+pnpm-lock.yaml
+pnpm-workspace.yaml

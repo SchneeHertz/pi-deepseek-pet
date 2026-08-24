@@ -1,6 +1,6 @@
 {
   "name": "dsh-pet",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A floating desktop pet for the DeepSeek Harness Web UI: idle breathing, occasional direction turns, random actions, and screen wandering.",
   "keywords": [
     "dsh",
@@ -54,6 +54,7 @@
     "src",
     "assets/thumb",
     "assets/fonts",
+    "assets/pic",
     "assets/config.jsonc",
     "cordis.patch.yml"
   ],
@@ -100,7 +101,7 @@
     "eslint": "^10.9.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.9.6",
-    "rolldown": "^1.0.0-beta.7",
+    "rolldown": "1.0.0-beta.7",
     "tsdown": "^0.8.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.67.0"
