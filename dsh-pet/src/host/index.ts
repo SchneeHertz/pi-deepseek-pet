@@ -102,8 +102,8 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-/** 校验并归一化用户配置：只接受 { pets: [{ id, size, position }] } */
-function sanitizeUserConfig(raw: unknown): { pets: unknown[] } | null {
+/** 校验并归一化用户配置：只接受 { pets: [...] }，可选顶层 notificationsEnabled（布尔） */
+function sanitizeUserConfig(raw: unknown): { pets: unknown[]; notificationsEnabled?: boolean } | null {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const arr = Array.isArray(o.pets) ? o.pets : null;
   if (!arr || !arr.length) return null;
@@ -127,7 +127,11 @@ function sanitizeUserConfig(raw: unknown): { pets: unknown[] } | null {
     if (!Number.isFinite(marginX) || !Number.isFinite(marginY)) return null;
     out.push({ id, size, balanceEnabled, position: { corner, marginX, marginY } });
   }
-  return { pets: out };
+  const ne = o.notificationsEnabled;
+  if (ne !== undefined && typeof ne !== 'boolean') return null;
+  const outConfig: { pets: unknown[]; notificationsEnabled?: boolean } = { pets: out };
+  if (ne !== undefined) outConfig.notificationsEnabled = ne;
+  return outConfig;
 }
 
 /** 宿主插件主体：注册 `/dsh-pet-7340` 前缀路由。 */
@@ -171,7 +175,7 @@ export function apply(ctx: any): void {
                 if (!clean) {
                   sendJson(res, 400, {
                     error:
-                      'invalid pet config: expected { pets:[{id,size,balanceEnabled,position:{corner,marginX,marginY}}] }',
+                      'invalid pet config: expected { pets:[{id,size,balanceEnabled,position:{corner,marginX,marginY}}] }（可选顶层 notificationsEnabled 布尔）',
                   });
                   return;
                 }

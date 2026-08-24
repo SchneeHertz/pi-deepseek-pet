@@ -3,6 +3,7 @@
 // 类似 Vue 的 App.vue 只挂根组件、SpringBoot 启动类只做装配，不写页面业务。
 import { makePetUI } from './pet';
 import { makePetConfigSection, NS, zh, en } from './settings';
+import { startNotify } from './notify';
 import type * as ReactNS from 'react';
 
 /**
@@ -22,12 +23,24 @@ export function makeFactory(): (require: (mod: string) => any) => any {
     const PetMulti = makePetUI({ h, useState, useEffect, useRef });
 
     const name = 'pet';
-    const inject = ['slots', 'locale'];
+    const inject = ['slots', 'locale', 'connection'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入的 ctx（locale/slots/webServer 等 service 无静态类型）
     function apply(ctx: any) {
       // 本地化字典（设置页文案）
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-pet: dictionaries');
       const t = ctx.locale.bind(NS);
+
+      // 系统通知：订阅 DSH 事件流（对话完成/生成失败/权限申请/用户选择），窗口失焦时弹出
+      ctx.effect(() => {
+        const api = ctx.connection?.api;
+        if (api && typeof api?.events?.mux === 'function' && typeof api?.events?.host === 'function') {
+          const ac = new AbortController();
+          void startNotify(api, ac.signal);
+          return () => ac.abort();
+        }
+        console.warn('[dsh-pet] 系统通知未启动：connection 服务不可用');
+        return () => {};
+      }, 'dsh-pet: notifications');
 
       // 宠物 overlay（多开：容器渲染多个 PetCard）
       ctx.slots.inject('shell.overlay', function* () {

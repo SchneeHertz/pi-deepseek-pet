@@ -16,6 +16,7 @@ const CORNER_SET: ReadonlySet<string> = new Set(CORNERS);
 
 /** ClientConfig 类型占位（data-less；PetMulti 加载后由 assertClientConfig 赋真实值） */
 export const EMPTY_CONF: ClientConfig = {
+  notificationsEnabled: true,
   pets: [],
   animations: {
     idle: [],
@@ -118,7 +119,12 @@ export function assertClientConfig(raw: unknown): ClientConfig {
   const balanceSec = cleaned.balance;
   if (balanceSec === undefined) throw new Error('dsh-pet: eventsRefreshSec.balance 缺失（余额事件周期必备）');
 
-  return { pets, animations: a, animationWeights: w, eventsRefreshSec: cleaned };
+  // ---- notificationsEnabled（系统通知总开关：必填布尔值）----
+  const notificationsEnabled = cfg.notificationsEnabled;
+  if (typeof notificationsEnabled !== 'boolean')
+    throw new Error('dsh-pet: 缺少 notificationsEnabled（需为布尔值 true/false）');
+
+  return { notificationsEnabled, pets, animations: a, animationWeights: w, eventsRefreshSec: cleaned };
 }
 
 /** 合并宠物：用户层（{ pets }，与 jsonc 同构）全量替换默认；无用户层回落默认 */
@@ -127,12 +133,14 @@ export function resolvePets(defaults: Pet[], user: { pets?: Pet[] }): Pet[] {
   return defaults;
 }
 
-/** 用户覆盖片段（与 jsonc 同构；高级用户直接编辑 pet-config.json，缺省字段回落默认） */
+/** 用户覆盖片段（与 jsonc 同构；高级用户直接编辑 main-config.json，缺省字段回落默认） */
 export interface UserOverrides {
   pets?: Pet[];
   animations?: Animations;
   animationWeights?: Weights;
   eventsRefreshSec?: Record<string, number>;
+  /** 系统通知总开关（可选）：用户层给出时优先于默认配置 */
+  notificationsEnabled?: boolean;
 }
 
 /** 合并用户覆盖片段到完全体配置：pets / animations / animationWeights / eventsRefreshSec 有则整体替换，缺省回落默认 */
@@ -141,5 +149,7 @@ export function applyUserOverrides(base: ClientConfig, user: UserOverrides): Cli
   if (user.animations) next.animations = user.animations;
   if (user.animationWeights) next.animationWeights = user.animationWeights;
   if (user.eventsRefreshSec) next.eventsRefreshSec = user.eventsRefreshSec;
+  // 系统通知总开关：用户层显式给出时优先，缺省回落默认配置
+  if (user.notificationsEnabled !== undefined) next.notificationsEnabled = user.notificationsEnabled;
   return next;
 }

@@ -9,6 +9,7 @@
  * 样式对齐官方设置页：max-width 720px、全走 --dsw-alias-* 语义 token（主题跟随）。
  */
 import { assertClientConfig, stripJsonc } from './config';
+import { requestNotificationPermission } from './notify';
 import type { Corner, Pet } from './types';
 import type { ChangeEvent, CSSProperties, Dispatch, FunctionComponent, SetStateAction, useEffect } from 'react';
 import type * as ReactNS from 'react';
@@ -65,6 +66,15 @@ export const zh = {
   loadError: '加载配置失败',
   invalid: '请检查输入：大小需为正数，边距可为任意数字。',
   busy: '保存中…',
+  notifyToggle: '系统通知',
+  notifyToggleHint: '对话完成 / 生成失败 / 权限申请 / 用户选择，在窗口失焦时弹出系统级通知（桌面右下角）。',
+  notifyGetPermission: '获取权限',
+  notifyPermissionOk: '已获得通知权限，右下角出现测试通知。',
+  notifyDenyUnsupported: '当前环境不支持系统通知（浏览器无 Notification API）。',
+  notifyDenyBlocked: '通知权限已被浏览器标记为「阻止」。',
+  notifyDenyRejected: '你在权限询问弹窗中选择了「阻止」。',
+  notifyDenyError: '申请权限时出错',
+  notifyGuide: '引导：点击地址栏左侧 🔒/ⓘ →「网站设置」→「通知」→ 改为「允许」，刷新页面后重试。',
 };
 
 export const en = {
@@ -104,6 +114,17 @@ export const en = {
   loadError: 'Failed to load config',
   invalid: 'Check your input: size must be positive; margins can be any number.',
   busy: 'Saving…',
+  notifyToggle: 'System notifications',
+  notifyToggleHint:
+    'OS-level toasts (bottom-right of the desktop) for conversation completion, failures, permission requests, and questions — only while this window is unfocused.',
+  notifyGetPermission: 'Get permission',
+  notifyPermissionOk: 'Notification permission granted — a test notification was sent.',
+  notifyDenyUnsupported: 'System notifications are not supported in this environment (no Notification API).',
+  notifyDenyBlocked: 'Notification permission is blocked by the browser.',
+  notifyDenyRejected: 'You chose "Block" in the permission prompt.',
+  notifyDenyError: 'Failed to request permission',
+  notifyGuide:
+    'Guide: click the 🔒/ⓘ icon next to the address bar → Site settings → Notifications → set to "Allow", then refresh and retry.',
 };
 
 /**
@@ -172,6 +193,74 @@ export function makePetConfigSection(rt: {
         .catch(() => console.warn('[dsh-pet] 读取配置文件路径失败'));
     }, []);
 
+    // 系统通知总开关（全局：读写用户级配置 main-config.json 的 notificationsEnabled；即时生效）
+    const [notifyEnabled, setNotifyEnabled] = useState(true);
+    // 权限申请按钮的反馈（就地显示在按钮旁，与全局保存反馈分离）
+    const [permMsg, setPermMsg] = useState<{ kind: 'ok' | 'err' | ''; text: string }>({ kind: '', text: '' });
+    useEffect(() => {
+      let alive = true;
+      fetch('/dsh-pet-7340/config')
+        .then((r) => (r.ok && r.status !== 204 ? r.json() : null))
+        .then((d) => {
+          if (alive && d && typeof d.notificationsEnabled === 'boolean') setNotifyEnabled(d.notificationsEnabled);
+        })
+        .catch(() => {
+          /* 无用户层时保持默认（true） */
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    const toggleNotify = async (v: boolean) => {
+      setBusy(true);
+      setMsg({ kind: '', text: '' });
+      try {
+        // 开启时先借用户手势申请系统通知权限（无手势的自动申请可能被浏览器静默压制）
+        if (v) await requestNotificationPermission();
+        // 与保存同构：整包写用户级配置（pets + 开关），避免开关写入被 sanitize 拒绝
+        const res = await fetch('/dsh-pet-7340/config', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ pets: pets, notificationsEnabled: v }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        setNotifyEnabled(v);
+        petBridge.current = pets;
+        petBridge.sync(pets);
+        setMsg({ kind: 'ok', text: t('saved') });
+      } catch {
+        setMsg({ kind: 'err', text: t('loadError') });
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const grantNotifyPermission = async () => {
+      setPermMsg({ kind: '', text: '' });
+      const r = await requestNotificationPermission();
+      if (!r.ok) {
+        // 红字：失败理由 + 引导（unsupported 无引导，改环境才有意义）
+        const reason =
+          r.reason === 'unsupported'
+            ? t('notifyDenyUnsupported')
+            : r.reason === 'denied'
+              ? t('notifyDenyBlocked')
+              : r.reason === 'rejected'
+                ? t('notifyDenyRejected')
+                : t('notifyDenyError') + (r.message ? '：' + r.message : '');
+        setPermMsg({ kind: 'err', text: reason + (r.reason === 'unsupported' ? '' : ' ' + t('notifyGuide')) });
+        return;
+      }
+      try {
+        // 成功即发一条测试通知验证链路（绕过聚焦门，直接确认）
+        new Notification('测试通知', { body: '【dsh-pet】系统通知已就绪。' });
+      } catch {
+        /* 个别环境构造失败：仍按已授权提示 */
+      }
+      setPermMsg({ kind: 'ok', text: t('notifyPermissionOk') });
+    };
+
     // 当前选中的宠物对象（表单数据源）；selId 由 add/remove/reset 同步维护，列表非空时恒有效
     const cur = pets.find((p) => p.id === selId) ?? null;
 
@@ -206,10 +295,23 @@ export function makePetConfigSection(rt: {
       setBusy(true);
       setMsg({ kind: '', text: '' });
       try {
+        // 保留用户级配置（main-config.json）里手写的 notificationsEnabled，避免保存时被整体覆盖丢失
+        let notificationsEnabled: boolean | undefined;
+        try {
+          const prev = await fetch('/dsh-pet-7340/config');
+          if (prev.ok && prev.status !== 204) {
+            const pj = await prev.json().catch(() => null);
+            if (pj && typeof pj.notificationsEnabled === 'boolean') notificationsEnabled = pj.notificationsEnabled;
+          }
+        } catch {
+          /* 无用户层时忽略 */
+        }
+        const body: Record<string, unknown> = { pets: pets };
+        if (notificationsEnabled !== undefined) body.notificationsEnabled = notificationsEnabled;
         const res = await fetch('/dsh-pet-7340/config', {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ pets: pets }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         petBridge.current = pets;
@@ -475,6 +577,66 @@ export function makePetConfigSection(rt: {
               style: { margin: 0, fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)' },
               children: t('emptyPets'),
             }),
+
+        // 系统通知总开关（全局，写入用户级配置；即时生效，不归属单个宠物）
+        h('label', {
+          style: {
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            marginTop: '8px',
+            fontSize: '13px',
+            color: 'var(--dsw-alias-label-primary)',
+          },
+          children: [
+            h('input', {
+              type: 'checkbox',
+              checked: notifyEnabled,
+              disabled: busy,
+              onChange: (e: ChangeEvent<HTMLInputElement>) => void toggleNotify(e.target.checked),
+              style: { width: '16px', height: '16px', accentColor: 'var(--dsw-alias-state-business-primary)' },
+            }),
+            h('span', { children: t('notifyToggle') }),
+            h('span', {
+              style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)' },
+              children: t('notifyToggleHint'),
+            }),
+          ],
+        }),
+
+        // 权限获取按钮 + 反馈（独立一行，样式对齐设置页现有按钮）
+        h('div', {
+          style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' },
+          children: [
+            h('button', {
+              type: 'button',
+              onClick: () => void grantNotifyPermission(),
+              style: {
+                border: '1px solid var(--dsw-alias-border-l2)',
+                background: 'transparent',
+                color: 'var(--dsw-alias-label-primary)',
+                borderRadius: '8px',
+                padding: '4px 14px',
+                fontSize: '12px',
+                cursor: 'pointer',
+              },
+              children: t('notifyGetPermission'),
+            }),
+            permMsg.text
+              ? h('span', {
+                  style: {
+                    fontSize: '12px',
+                    color:
+                      permMsg.kind === 'err'
+                        ? 'var(--dsw-alias-state-error-primary)'
+                        : 'var(--dsw-alias-state-ok-primary)',
+                    lineHeight: '18px',
+                  },
+                  children: permMsg.text,
+                })
+              : null,
+          ],
+        }),
 
         // 操作区
         h('div', {
