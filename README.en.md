@@ -42,7 +42,28 @@ dsh plugin --profile web add dsh-pet
 
 Restart `dsh web` and the pet appears in the bottom-right corner.
 
-> **Compatibility**: this plugin is developed and tested with dsh **`0.1.1-rc.1`** (check yours with `dsh --version`). Using the same version is recommended; please report any issues on other versions.
+> **Compatibility**: this plugin is developed and tested with dsh **`0.1.1-rc.2`** (check yours with `dsh --version`). Using the same version is recommended; please report any issues on other versions.
+
+### Install from source (after cloning this repo)
+
+The `lib/` build output is not committed, so clone first, then build, then install:
+
+```sh
+# ① Clone this repo and enter the plugin directory
+git clone https://github.com/PC2005-cloud/dsh-pet.git
+cd dsh-pet/dsh-pet
+
+# ② Install dependencies
+npm install
+
+# ③ Build + inject the playback format (webm build; use npm run prepare:mov for Safari)
+npm run prepare:webm
+
+# ④ Install into DSH (file: points at this directory, uses the built lib)
+dsh plugin --profile web add file:D:/path/to/dsh-pet
+```
+
+> Note: only `prepare:webm` / `prepare:mov` produce an installable lib (they inject the playback extension); a bare `tsdown` build leaves the placeholder in place and animations won't play.
 
 ## Generate Your Own Pet from Scratch (Full Pipeline)
 
@@ -60,7 +81,6 @@ Put the results into `video/` (one mp4 per action).
 > **Getting the source videos**: to keep the repo small, `video/` sources are not committed. Releases provide **zipped bundles** you can download directly in the browser:
 >
 > - `assets-videos.zip` — all source videos (Chinese-named mp4s; extract and put them into `video/`)
-> - `pr-project.zip` — the PR hand-keying project (`.prproj` + mask cache, optional; reference for Track B keying)
 >
 > Extract with `Expand-Archive assets-videos.zip` (Windows) or `unzip assets-videos.zip`, then put the mp4s back into `video/` — the pipeline is ready to run.
 
@@ -90,14 +110,33 @@ python encode_thumbs.py      # transcode 640×360 playback variants → step04/
 
 > **This project uses Track B for all 97 actions** (every action is PR hand-keyed): for actions with 3rd-party props or complex transparent edges, automatic HSV keying tends to leave fringes or mis-key pixels, while manual masks in PR are far cleaner. Both tracks produce the same `step02/` level, so everything downstream is identical; `chroma_step02.py` is kept as the automatic fallback so any action can still be generated with one command.
 
+### ②.5 🍎 Safari build (webm → mov, GitHub Actions macOS pipeline)
+
+The `step04/` output above is **VP9-alpha webm** (natively supported by Chrome/Edge/Firefox), but **Safari does not support webm alpha** (renders a black background) — it only supports **HEVC-with-Alpha mov**, and that encoder (`hevcWithAlpha`, AVFoundation) **only exists on macOS — Windows/Linux cannot produce it**. This project is developed on Windows, which cannot run this encoding locally, so the mov assets are batch-transcoded in the cloud on a **GitHub Actions macOS runner** (`macos-latest`, free allowance, no Mac needed):
+
+```sh
+# Manually trigger the repo's hevc-alpha workflow (Settings → Actions → Workflows → Run workflow)
+# The workflow uses actions/checkout to grab this repo and encodes in place — assets and pipeline share the repo, no cross-repo clone
+```
+
+> If you have a Mac (or a macOS VM), **you don't need GitHub Actions** — run the same encoder script locally:
+> ```sh
+> chmod +x scripts/encode_hevc_alpha.sh
+> ./scripts/encode_hevc_alpha.sh dsh-pet/assets/webm dsh-pet/assets/mov
+> ```
+
+- workflow: `.github/workflows/hevc-alpha.yml` (manual trigger via `workflow_dispatch`)
+- encoder script: `scripts/encode_hevc_alpha.sh` (ffmpeg only decodes the webm → raw BGRA frame pipeline → Swift `hevc_alpha_encoder.swift` via AVAssetWriter `hevcWithAlpha` native API)
+- input: `dsh-pet/assets/webm/*.webm`; **output written directly back to `dsh-pet/assets/mov/`**
+- verification: automatically checks the products carry a real `hvc1` tag + alpha channel, then uploads them as an artifact (`dsh-pet-hevc-alpha`)
+
 ### ③ Animations → Plugin
 
 ```sh
-# Sync the step04 playback variants into the plugin package (per format directory)
+# Sync the step04 playback variants into the plugin package (webm is a plain cp)
 cp step04/*.webm dsh-pet/assets/webm/   # Chrome / Edge / Firefox playback format (VP9-alpha)
-# Safari uses HEVC-with-Alpha mov (see "Dual-format publishing" below): produced by
-# the separate pipeline, then copied in
-cp dist/*.mov dsh-pet/assets/mov/        # Safari playback format (HEVC-alpha)
+# Safari uses HEVC-with-Alpha mov — produced automatically into dsh-pet/assets/mov/
+# by the GitHub Actions macOS pipeline (see ②.5 above)
 
 # Install the plugin locally (webm build)
 dsh plugin --profile web add file:D:/path/to/dsh-pet
@@ -112,8 +151,8 @@ Same npm package `dsh-pet`, published as two builds by browser target (the `asse
 
 ```sh
 cd dsh-pet
-npm run publish:webm    # Chrome/Edge/Firefox build → dsh-pet@0.1.9, tag latest
-npm run publish:mov     # Safari build (HEVC-alpha) → dsh-pet@0.1.9-hevc, tag hevc
+npm run prepare:webm   # Chrome/Edge/Firefox build → dsh-pet@0.2.0, tag latest
+npm run prepare:mov    # Safari build (HEVC-alpha) → dsh-pet@0.2.0-hevc, tag hevc
 ```
 
 Users pick by browser:
@@ -123,28 +162,36 @@ dsh plugin --profile web add dsh-pet        # Chrome/Edge/Firefox (default lates
 dsh plugin --profile web add dsh-pet@hevc   # Safari (HEVC-alpha mov)
 ```
 
-- The client picks the extension by UA (Safari → `.mov`, others → `.webm`); both builds
-  share the same code
-- MOV assets are produced by the separate pipeline repo `dsh-pet-hevc-pipeline`
-  (GitHub Actions cloud macOS encoding)
+- The client does no runtime browser sniffing — the extension is injected at publish time
+  (`prepare:webm` → `.webm` / `prepare:mov` → `.mov`); sources are shared, artifacts are per-format
+- MOV assets are produced by the in-repo workflow `.github/workflows/hevc-alpha.yml`
+  (GitHub Actions cloud macOS `macos-latest` encoding)
 
 ## Project Structure
 
 ```
 ├── prompts/                 # ① Generation prompts for the actions (green-screen spec + per-second breakdown)
-├── scripts/                 # ② Asset pipeline (Python: watermark/keying/normalize/transcode, incl. PR import)
+├── step01/                  # ② Pipeline intermediates: green-screen raw frames (not committed)
+├── step02/                  # ② Pipeline intermediates: keyed output (not committed)
+├── step03/                  # ② Pipeline intermediates: watermark-composited (not committed)
+├── step04/                  # ② Pipeline intermediates: 640×360 playback variants (not committed)
+├── scripts/                 # ② Asset pipeline (Python: watermark/keying/normalize/transcode)
 ├── video/                   # ② Source videos (green-screen mp4s, one per action + watermark mask; not committed, zipped on Releases)
 ├── pr/                      # ② Track B input: PR-exported transparent .mov (local working data, not committed)
 ├── prproj/                  # ② PR project directory (.prproj + mask cache + auto-saves, local, not committed)
 ├── tools/                   # Dev tools: preview.html (pipeline stage previews)
+├── .github/workflows/       # CI: hevc-alpha.yml (macOS runner batch transcode webm → mov, manual trigger)
 ├── dsh-pet/                 # ③ The plugin (can be published to npm independently)
 │   ├── src/                 #   TS sources (host half: /dsh-pet-7340 routes; client half: animation chain)
-│   ├── lib/                 #   tsdown build output (auto-built on install; lib/*.js not committed)
+│   ├── lib/                 #   tsdown build output (built by prepare; lib/*.js not committed)
 │   ├── assets/webm/         #   640×360 VP9-alpha playback animations (Chrome/Edge/Firefox build assets)
 │   ├── assets/mov/          #   640×360 HEVC-with-Alpha playback animations (Safari build assets)
 │   ├── assets/preview/      #   GIF previews (for README display, pinyin filenames)
+│   ├── assets/fonts/        #   bubble/notification fonts
+│   ├── assets/pic/          #   notification icons + glove cursors
+│   ├── assets/config.jsonc  #   default config (animation pools / weights / pet list, single source of truth)
 │   ├── scripts/prepack-check.js  # pre-publish health check
-│   └── scripts/publish.js   # dual-format publish script (packs only the matching asset dir per tag)
+│   └── scripts/prepare.js   # pre-publish micro-adjust (build + inject playback extension .webm/.mov)
 ├── DESIGN.md                # Design & implementation docs
 └── LICENSE                  # MIT
 ```
@@ -174,6 +221,8 @@ Balance is a kind of "event animation": at runtime the plugin polls the current 
 
 The pet's size, position and multi-pet setup can be configured in two ways:
 
+> 💡 **Both paths are just different editors for the same user config** — the configurable surface is far larger than the settings page: the settings page only edits size/position/multi-pet, but **editing the config file by hand unlocks arbitrary free configuration** (animation pools, play weights, event animations, refresh periods…). Just keep the **same shape as the default `config.jsonc`**; user config **overrides** the corresponding fields wholesale.
+
 ### Via the settings page (recommended)
 DSH Settings → **Pet Config**:
 
@@ -195,6 +244,20 @@ The `pets` array in `dsh-pet/assets/config.jsonc` defines the **default pets**:
 - Each pet: `id` (identifier) / `size` (width px) / `balanceEnabled` (whether balance is enabled, required boolean) / `position` (corner + marginX/marginY)
 - Balance refresh period: `eventsRefreshSec.balance` (seconds) — the interval between balance data refreshes and balance-animation triggers; fires once on startup, then loops at this interval (default 180)
 - Changes made in the settings page are saved to the user layer `$DSH_HOME/dsh-pet/main-config.json` (a **full pet list** that overrides the package defaults); "Reset to default" removes it and falls back to `config.jsonc`
+
+### Via editing the config file directly (advanced, fully free config)
+
+The user-layer config lives at `$DSH_HOME/dsh-pet/main-config.json`. **It uses the exact same shape as the package default** — copy any part of `assets/config.jsonc` you want to change; missing/invalid fields fall back to the defaults (you don't need, and can't, write the whole file):
+
+| Field | Purpose | Shape |
+|---|---|---|
+| `pets` | pet list (size/position/multi-pet/balance toggle) | array, same as `pets[]` |
+| `animations` | **animation pools**: idle / turn / drag / clicks / moves / categories / events (balance, …) | same as `animations` |
+| `animationWeights` | animation-chain weights (idle / turn / move) | same as `animationWeights` |
+| `eventsRefreshSec` | event refresh period (seconds) | same as `eventsRefreshSec` |
+| `notificationsEnabled` | system-notification master switch (boolean) | same as `notificationsEnabled` |
+
+> Override semantics: a field present in the user layer **replaces the whole default field** (e.g. writing `animations` swaps in your entire animation pool); omitted fields fall back to the package defaults. Validation runs at plugin load — malformed configs fail loudly in the DSH console instead of silently running a broken config.
 
 ## Running Screenshots
 

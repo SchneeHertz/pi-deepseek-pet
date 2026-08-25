@@ -20,7 +20,7 @@
 
 素材链在工作区 `scripts/` 目录，Python + ffmpeg 构成流水线：
 
-> 注：`video/` 源 mp4 不入 git，托管在 GitHub Releases 的 `assets-videos.zip`（全部源视频打包，浏览器直接下载）；PR 工程以 `pr-project.zip`（.prproj + 遮罩缓存）同 Release 存档。`dsh-pet/assets/preview/` GIF 在仓库内（README 用 raw 直链渲染——GitHub 不支持仓库内 webm 在 README 内联播放，GIF 是唯一可靠的仓库内渲染方案；Release 附件以 `application/octet-stream` 返回也无法渲染，故 GIF 必须留在仓库）。
+> 注：`video/` 源 mp4 不入 git，托管在 GitHub Releases 的 `assets-videos.zip`（全部源视频打包，浏览器直接下载）。`dsh-pet/assets/preview/` GIF 在仓库内（README 用 raw 直链渲染——GitHub 不支持仓库内 webm 在 README 内联播放，GIF 是唯一可靠的仓库内渲染方案；Release 附件以 `application/octet-stream` 返回也无法渲染，故 GIF 必须留在仓库）。
 
 ```
 video/（原始绿幕 mp4 + 水印 mask；源视频从 Releases assets-videos 下载）

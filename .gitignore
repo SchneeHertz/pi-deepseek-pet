@@ -25,6 +25,7 @@ __pycache__/
 # ── Node ──
 node_modules/
 .npm-cache/
+.npm-tmp-cache/
 npm-debug.log*
 *.tgz
 

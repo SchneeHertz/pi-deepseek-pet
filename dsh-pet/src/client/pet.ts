@@ -35,8 +35,8 @@ const css = [
   '.dsh-pet-stage{position:relative;width:var(--dsh-pet-size,462px);height:calc(var(--dsh-pet-size,462px)*9/16);pointer-events:none}',
   '.dsh-pet-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:0;transition:opacity .18s ease;transform-origin:center}',
   '.dsh-pet-video.is-front{opacity:1}',
-  '.dsh-pet-hit{position:absolute;pointer-events:auto;cursor:default;z-index:1}',
-  '.dsh-pet-hit.dragging{cursor:grabbing}',
+  '.dsh-pet-hit{position:absolute;pointer-events:auto;cursor:url("/dsh-pet-7340/pic/cursor-grab.png") 16 16, grab;z-index:1}',
+  '.dsh-pet-hit.dragging{cursor:url("/dsh-pet-7340/pic/cursor-grabbing.png") 16 16, grabbing}',
   '@media (prefers-reduced-motion: reduce){.dsh-pet-video{transition:none}}',
 ].join('\n');
 const cssTag = 'dsh-pet/style.css';
@@ -489,12 +489,6 @@ export function makePetUI(rt: {
         top: (HIT_BOX.y0 / 360) * 100 + '%',
         width: ((HIT_BOX.x1 - HIT_BOX.x0) / 640) * 100 + '%',
         height: ((HIT_BOX.y1 - HIT_BOX.y0) / 360) * 100 + '%',
-      },
-      onMouseEnter: (e: ReactNS.MouseEvent<HTMLDivElement>) => {
-        if (!dragRef.current.active) e.currentTarget.style.cursor = 'grab';
-      },
-      onMouseLeave: (e: ReactNS.MouseEvent<HTMLDivElement>) => {
-        if (!dragRef.current.active) e.currentTarget.style.cursor = 'default';
       },
       onClick: handleClick,
       onPointerDown: handlePointerDown,

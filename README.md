@@ -44,7 +44,28 @@ dsh plugin --profile web add dsh-pet
 
 重启 `dsh web`，宠物出现在右下角。
 
-> **兼容性**：本插件在 dsh **`0.1.1-rc.1`** 下开发并测试（`dsh --version` 可查看你的版本）。建议使用相同版本；其他版本如遇问题欢迎反馈。
+> **兼容性**：本插件在 dsh **`0.1.1-rc.2`** 下开发并测试（`dsh --version` 可查看你的版本）。建议使用相同版本；其他版本如遇问题欢迎反馈。
+
+### 从源码安装（clone 本仓库后）
+
+`lib/` 构建产物不入库，clone 后需要先构建再安装：
+
+```sh
+# ① clone 本仓库，进入插件目录
+git clone https://github.com/PC2005-cloud/dsh-pet.git
+cd dsh-pet/dsh-pet
+
+# ② 安装依赖
+npm install
+
+# ③ 构建 + 注入播放格式（webm 版；Safari 用 npm run prepare:mov）
+npm run prepare:webm
+
+# ④ 安装到 DSH（file: 指向本目录，用构建好的 lib）
+dsh plugin --profile web add file:D:/path/to/dsh-pet
+```
+
+> 注：`prepare:webm` / `prepare:mov` 才产出可安装的 lib（注入播放扩展名）；直接用 `tsdown` 裸构建会留下占位符，动画无法播放。
 
 ## 从零生成你自己的宠物（完整流程）
 
@@ -62,7 +83,6 @@ dsh plugin --profile web add dsh-pet
 > **源视频获取**：为控制仓库体积，`video/` 源视频不入 git。Releases 提供**打包压缩包**，浏览器直接下载即可：
 >
 > - `assets-videos.zip` —— 全部源视频压缩包（中文名 mp4，解压后放入 `video/`）
-> - `pr-project.zip` —— PR 手工抠像工程（`.prproj` + 遮罩缓存，可选，供参考路线 B 的手工抠像做法）
 >
 > 解压：`Expand-Archive assets-videos.zip`（Windows）或 `unzip assets-videos.zip`，把 mp4 放回 `video/` 即可运行素材链。
 
@@ -90,13 +110,32 @@ python encode_thumbs.py      # 转码 640×360 播放变体 → step04/
 
 > **本项目全部采用路线 B**（97 个动作均为 PR 手工抠像）：对"含第三方物品/透明边缘复杂"的动作，自动 HSV 抠像易残边或误抠，PR 手动遮罩更精细。两条路线产出同一级 `step02/`，后续步骤完全一致；`chroma_step02.py` 保留为自动化兜底，任何动作仍可一键自动生成。
 
+### ②.5 🍎 Safari 版素材（webm → mov，GitHub Actions macOS 流水线）
+
+上一步产出的 `step04/` 是 **VP9-alpha webm**（Chrome/Edge/Firefox 原生支持），但 **Safari 不认 webm alpha**（渲染黑底），只支持 **HEVC-with-Alpha mov**——而该编码器（`hevcWithAlpha`，AVFoundation）**只有 macOS 有，Windows/Linux 产不出**。本项目开发机是 Windows，无法本地跑这条编码，所以利用 GitHub Actions 的 **macOS runner 云端批量转码**（`macos-latest`，免费额度，无需自备 Mac）：
+
+```sh
+# 手动触发仓库的 hevc-alpha workflow（Settings → Actions → Workflows → Run workflow）
+# mov 由 workflow 用 actions/checkout 拿到本仓库直接编码，与素材同仓，不跨仓库
+```
+
+> 如果你有 Mac（或 macOS 虚拟机），**无需 GitHub Actions**，本地直接跑同样的编码脚本即可：
+> ```sh
+> chmod +x scripts/encode_hevc_alpha.sh
+> ./scripts/encode_hevc_alpha.sh dsh-pet/assets/webm dsh-pet/assets/mov
+> ```
+
+- workflow：`.github/workflows/hevc-alpha.yml`（手动触发 `workflow_dispatch`）
+- 编码脚本：`scripts/encode_hevc_alpha.sh`（ffmpeg 仅解码 webm → BGRA 帧管线 → Swift `hevc_alpha_encoder.swift` 走 AVAssetWriter `hevcWithAlpha` 原生 API）
+- 输入：`dsh-pet/assets/webm/*.webm`；**输出直接写回 `dsh-pet/assets/mov/`**
+- 校验：自动检查产物 `hvc1` tag + alpha 通道真实存在，并打包上传为 artifact（`dsh-pet-hevc-alpha`）
+
 ### ③ 动画 → 插件
 
 ```sh
-# 把 step04 的播放变体同步进插件包（按格式分目录）
+# 把 step04 的播放变体同步进插件包（webm 直接 cp）
 cp step04/*.webm dsh-pet/assets/webm/   # Chrome / Edge / Firefox 播放格式（VP9-alpha）
-# Safari 用 HEVC-with-Alpha mov（见下方「双格式发布」）：由独立流水线产出后放入
-cp dist/*.mov dsh-pet/assets/mov/        # Safari 播放格式（HEVC-alpha）
+# Safari 用 HEVC-with-Alpha mov —— 由 GitHub Actions macOS 流水线（见上节 ②.5）自动产出到 dsh-pet/assets/mov/
 
 # 本地安装插件（webm 版）
 dsh plugin --profile web add file:D:/path/to/dsh-pet
@@ -110,8 +149,8 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 
 ```sh
 cd dsh-pet
-npm run publish:webm    # 发布 Chrome/Edge/Firefox 版 → dsh-pet@0.1.9，tag latest
-npm run publish:mov     # 发布 Safari 版（HEVC-alpha）→ dsh-pet@0.1.9-hevc，tag hevc
+npm run prepare:webm   # 发布 Chrome/Edge/Firefox 版 → dsh-pet@0.2.0，tag latest
+npm run prepare:mov    # 发布 Safari 版（HEVC-alpha）→ dsh-pet@0.2.0-hevc，tag hevc
 ```
 
 用户按浏览器选装：
@@ -121,27 +160,34 @@ dsh plugin --profile web add dsh-pet        # Chrome/Edge/Firefox（默认 lates
 dsh plugin --profile web add dsh-pet@hevc   # Safari（HEVC-alpha mov）
 ```
 
-- client 端按 UA 检测自动请求对应扩展名（Safari → `.mov`，其余 → `.webm`），
-  两类发布共用同一份代码
-- mov 素材由独立流水线仓库 `dsh-pet-hevc-pipeline` 用 GitHub Actions 云端 macOS 编码产出
+- client 端不做运行时浏览器判断——扩展名由发布期脚本注入（`prepare:webm` → `.webm` / `prepare:mov` → `.mov`），源码共用、产物分格式
+- mov 素材由主仓库内置 workflow `.github/workflows/hevc-alpha.yml` 用 GitHub Actions 云端 macOS（`macos-latest`）编码产出，与素材同仓
 
 ### 项目结构
 
 ```
 ├── prompts/                 # ① 各动作的生成提示词（绿幕规范 + 按秒分解）
-├── scripts/                 # ② 素材生成链（Python：水印/抠像/归一化/转码，含 PR 导入）
+├── step01/                  # ② 素材链中间产物：绿幕原始帧（不入库）
+├── step02/                  # ② 素材链中间产物：抠像（不入库）
+├── step03/                  # ② 素材链中间产物：水印合成（不入库）
+├── step04/                  # ② 素材链中间产物：640×360 播放变体（不入库）
+├── scripts/                 # ② 素材生成链（Python：水印/抠像/归一化/转码）
 ├── video/                   # ② 源视频（绿幕 mp4 + 水印 mask，一动作一文件；不入库，Releases 有压缩包）
 ├── pr/                      # ② 路线 B 输入：PR 导出的透明 .mov（本地工作数据，不入库）
 ├── prproj/                  # ② PR 工程目录（.prproj + 遮罩缓存 + 自动保存，本地不入库）
 ├── tools/                   # 开发工具：preview.html（素材链各阶段效果预览）
+├── .github/workflows/       # CI：hevc-alpha.yml（macOS runner 批量转码 webm → mov，手动触发）
 ├── dsh-pet/                 # ③ 插件（可独立 npm 发布）
 │   ├── src/                 #   TS 源码（host 半侧 /dsh-pet-7340 路由 + client 半侧动画链）
 │   ├── lib/                 #   tsdown 构建产物（prepare 自动构建，lib/*.js 不入库）
 │   ├── assets/webm/         #   640×360 VP9-alpha 播放动画（Chrome/Edge/Firefox 版素材）
 │   ├── assets/mov/          #   640×360 HEVC-with-Alpha 播放动画（Safari 版素材）
 │   ├── assets/preview/      #   GIF 预览（README 展示用，拼音命名）
+│   ├── assets/fonts/        #   气泡/通知字体
+│   ├── assets/pic/          #   通知图标 + 手套光标
+│   ├── assets/config.jsonc  #   默认配置（动画池 / 权重 / 宠物列表，单一事实来源）
 │   ├── scripts/prepack-check.js  # 发布前健康检查
-│   └── scripts/publish.js   # 双格式发布脚本（按 tag 只打对应素材目录）
+│   └── scripts/prepare.js   # 发布前微调（构建 + 注入播放格式 .webm/.mov）
 ├── DESIGN.md                # 设计与实现文档
 └── LICENSE                  # MIT
 ```
@@ -171,6 +217,8 @@ dsh plugin --profile web add dsh-pet@hevc   # Safari（HEVC-alpha mov）
 
 桌宠的大小、位置、多开均可配置，两条途径：
 
+> 💡 **两条途径只是编辑入口不同，最终都是同一份用户配置**——配置能力远不止设置页那几个选项：设置页只能改「大小/位置/多开」，但**手动编写配置文件可以任意自由配置**（动画池、播放权重、事件动画、刷新周期……），只要**格式与包内默认配置 `config.jsonc` 一致**即可，用户配置会**整体覆盖**对应字段的默认值。
+
 ### 方式一：设置页（推荐）
 DSH 设置 → 「桌宠配置」：
 
@@ -192,6 +240,20 @@ DSH 设置 → 「桌宠配置」：
 - 每只宠物：`id`（标识）／ `size`（宽度 px）／ `balanceEnabled`（是否启用余额功能，必填布尔）／ `position`（corner 四角之一 + marginX/marginY 边距）
 - 余额刷新周期：`eventsRefreshSec.balance`（秒）——余额数据刷新与余额动画触发的间隔，启动时立即触发一次，之后按此周期循环（默认 180）
 - 设置页的修改保存到用户层 `$DSH_HOME/dsh-pet/main-config.json`（**完整宠物列表**，覆盖包内默认）；「恢复默认」即清除用户层、回落 config.jsonc
+
+### 方式三：手动编辑配置文件（高级，任意自由配置）
+
+用户层配置文件位于 `$DSH_HOME/dsh-pet/main-config.json`。**它和包内默认配置是同一套格式**——想改什么直接照着 `assets/config.jsonc` 的结构写即可，写错的字段/缺失的字段回落默认，无需（也无法）写完整份：
+
+| 字段 | 作用 | 格式与默认一致即可 |
+|---|---|---|
+| `pets` | 宠物列表（大小/位置/多开/余额开关） | 数组，每项同 `pets[]` 结构 |
+| `animations` | **动画池**：idle / turn / drag / clicks / moves / categories / events（余额等事件动画） | 同 `animations` 结构 |
+| `animationWeights` | 动画链播放权重（idle / turn / move） | 同 `animationWeights` 结构 |
+| `eventsRefreshSec` | 事件刷新周期（秒） | 同 `eventsRefreshSec` 结构 |
+| `notificationsEnabled` | 系统通知总开关（布尔） | 同 `notificationsEnabled` |
+
+> 覆盖语义：用户层给出即**整体替换**该字段（如写了 `animations` 就用你的整份动画池，替代默认），没写的字段回落包内默认。校验在插件加载时执行——格式错误会在 DSH 控制台显式报错，不会静默运行残缺配置。
 
 ## 运行效果
 
