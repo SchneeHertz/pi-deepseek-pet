@@ -44,12 +44,17 @@ for (const f of required) {
   existsSync(join(ROOT, f)) ? ok(`exists ${f}`) : fail(`missing ${f}`);
 }
 
-// ---- 2. 至少有待机动画 thumb（播放必需） ----
-const idle = join(ROOT, 'assets', 'thumb', '待机呼吸休闲.webm');
-existsSync(idle) ? ok('idle thumb present') : fail('missing 待机呼吸休闲.webm thumb');
+// ---- 2. 至少有待机动画（播放必需）——webm（默认 latest 发布）或 mov（@hevc 发布）任一存在即可 ----
+const idleWebm = join(ROOT, 'assets', 'webm', '待机呼吸休闲.webm');
+const idleMov = join(ROOT, 'assets', 'mov', '待机呼吸休闲.mov');
+existsSync(idleWebm)
+  ? ok('idle webm present')
+  : existsSync(idleMov)
+    ? ok('idle mov present (@hevc build)')
+    : fail('missing 待机呼吸休闲.webm/mov thumb');
 
 // ---- 3. 原始母版不得进 npm 包 ----
-// assets/ 根下若有 .webm 就是原始 1200×1200 母版（thumb 在 assets/thumb/ 子目录）
+// assets/ 根下若有 .webm 就是原始母版（播放素材在 assets/webm|mov 子目录）
 const originals = [];
 const assetsRoot = join(ROOT, 'assets');
 for (const name of readdirSync(assetsRoot)) {

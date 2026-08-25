@@ -19,10 +19,13 @@
 ## 🚀 快速开始（安装插件）
 
 ```sh
-dsh plugin --profile web add dsh-pet
+dsh plugin --profile web add dsh-pet          # 默认：Chrome/Edge/Firefox 版（webm）
+dsh plugin --profile web add dsh-pet@hevc     # Safari 版（HEVC-alpha mov）
 ```
 
 重启 `dsh web`，宠物出现在界面右下角——全部透明动画开箱即用，无需任何生成流程。
+
+> 💡 版本与格式绑定（发布期注入，无运行时浏览器判断）：`latest` 版内置 `.webm`（VP9-alpha），`hevc` 版内置 `.mov`（HEVC with Alpha）。Safari 请装 `@hevc` 版，否则黑底。
 
 > 💡 想自己造一只专属宠物？克隆 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 仓库，用内置素材链（AI 提示词 → 绿幕视频 → 透明动画，素材由豆包生成）从零生成，全流程可复现。
 
@@ -51,15 +54,15 @@ dsh plugin --profile web add dsh-pet
 
 用户数据统一收敛在 `$DSH_HOME/dsh-pet/`：
 
-| 层               | 路径                                 | 作用                                                                                |
-| ---------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
-| 默认配置（只读） | 包内 `assets/config.jsonc`           | 完整结构参考：宠物列表 / 动画池（idle/turn/drag/clicks/moves/categories）/ 播放权重 |
-| 用户配置         | `$DSH_HOME/dsh-pet/main-config.json` | 覆盖片段：可整体覆盖 `pets` / `animations` / `animationWeights`，缺省字段回落默认   |
-| 用户动画（可选） | `$DSH_HOME/dsh-pet/main-animation/`  | 放入 `.webm` 即可作为动画播放，**优先于包内素材**                                   |
+| 层               | 路径                                 | 作用                                                                                              |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| 默认配置（只读） | 包内 `assets/config.jsonc`           | 完整结构参考：宠物列表 / 动画池（idle/turn/drag/clicks/moves/categories）/ 播放权重               |
+| 用户配置         | `$DSH_HOME/dsh-pet/main-config.json` | 覆盖片段：可整体覆盖 `pets` / `animations` / `animationWeights`，缺省字段回落默认                 |
+| 用户动画（可选） | `$DSH_HOME/dsh-pet/main-animation/`  | 放入 `.webm` / `.mov` 即可作为动画播放，**优先于包内素材**（按扩展名进 `webm/` 或 `mov/` 子目录） |
 
 - 设置页底部会显示这些路径
-- 自定义动画：把 `xxx.webm` 放进 `main-animation/`，在动画池/分类里写 `"xxx"`，**刷新页面**即可（无需重启 DSH）
-- 格式：仅 `.webm`；**透明动画需 VP9 Alpha 编码**（与包内素材同规范，普通 webm 会有黑底）
+- 自定义动画：把 `xxx.webm`（或 `xxx.mov`）放进 `main-animation/webm/`（或 `main-animation/mov/`），在动画池/分类里写 `"xxx"`，**刷新页面**即可（无需重启 DSH）
+- 格式：`.webm` 需 **VP9 Alpha** 编码（Chrome/Edge/Firefox）；`.mov` 需 **HEVC with Alpha**（Safari，hvc1 tag）——均与包内素材同规范，普通编码会有黑底
 - 修改用户配置后同样**刷新页面**生效
 - 动画名请对照默认配置填写，避免引用不存在的动画
 
@@ -91,7 +94,7 @@ dsh plugin --profile web remove dsh-pet
   <img src="https://raw.githubusercontent.com/PC2005-cloud/dsh-pet/main/https://raw.githubusercontent.com/PC2005-cloud/dsh-pet/main/dsh-pet/assets/preview/beishubiao-tuozhuai-xuankong-fankui.gif" width="160" alt="被鼠标拖拽悬空反馈" title="被鼠标拖拽悬空反馈">
 </p>
 
-全部动画见仓库：`dsh-pet/assets/thumb/`。
+全部动画见仓库：`dsh-pet/assets/webm/`（VP9-alpha）与 `dsh-pet/assets/mov/`（HEVC-alpha）。
 
 ## 📚 完整项目（不止是插件）
 

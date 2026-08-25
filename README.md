@@ -93,18 +93,39 @@ python encode_thumbs.py      # 转码 640×360 播放变体 → step04/
 ### ③ 动画 → 插件
 
 ```sh
-# 把 step04 的播放变体同步进插件包
-cp step04/*.webm dsh-pet/assets/thumb/
+# 把 step04 的播放变体同步进插件包（按格式分目录）
+cp step04/*.webm dsh-pet/assets/webm/   # Chrome / Edge / Firefox 播放格式（VP9-alpha）
+# Safari 用 HEVC-with-Alpha mov（见下方「双格式发布」）：由独立流水线产出后放入
+cp dist/*.mov dsh-pet/assets/mov/        # Safari 播放格式（HEVC-alpha）
 
-# 本地安装插件
+# 本地安装插件（webm 版）
 dsh plugin --profile web add file:D:/path/to/dsh-pet
 ```
 
 > 中间产物（step01-04）由脚本生成、不入仓库；`video/` 源视频和脚本是成果、入库维护。
 
----
+### 🎯 双格式发布（一个包名，dist-tag 区分）
 
-## 项目结构
+同一 npm 包 `dsh-pet`，按浏览器分两个发布版本（素材目录 `assets/webm` / `assets/mov` 各只打进对应版本，包体各瘦一半）：
+
+```sh
+cd dsh-pet
+npm run publish:webm    # 发布 Chrome/Edge/Firefox 版 → dsh-pet@0.1.9，tag latest
+npm run publish:mov     # 发布 Safari 版（HEVC-alpha）→ dsh-pet@0.1.9-hevc，tag hevc
+```
+
+用户按浏览器选装：
+
+```sh
+dsh plugin --profile web add dsh-pet        # Chrome/Edge/Firefox（默认 latest → webm）
+dsh plugin --profile web add dsh-pet@hevc   # Safari（HEVC-alpha mov）
+```
+
+- client 端按 UA 检测自动请求对应扩展名（Safari → `.mov`，其余 → `.webm`），
+  两类发布共用同一份代码
+- mov 素材由独立流水线仓库 `dsh-pet-hevc-pipeline` 用 GitHub Actions 云端 macOS 编码产出
+
+### 项目结构
 
 ```
 ├── prompts/                 # ① 各动作的生成提示词（绿幕规范 + 按秒分解）
@@ -114,11 +135,13 @@ dsh plugin --profile web add file:D:/path/to/dsh-pet
 ├── prproj/                  # ② PR 工程目录（.prproj + 遮罩缓存 + 自动保存，本地不入库）
 ├── tools/                   # 开发工具：preview.html（素材链各阶段效果预览）
 ├── dsh-pet/                 # ③ 插件（可独立 npm 发布）
-│   ├── src/                 #   TS 源码（host 半侧 /pet 路由 + client 半侧动画链）
+│   ├── src/                 #   TS 源码（host 半侧 /dsh-pet-7340 路由 + client 半侧动画链）
 │   ├── lib/                 #   tsdown 构建产物（prepare 自动构建，lib/*.js 不入库）
-│   ├── assets/thumb/        #   640×360 透明播放动画
+│   ├── assets/webm/         #   640×360 VP9-alpha 播放动画（Chrome/Edge/Firefox 版素材）
+│   ├── assets/mov/          #   640×360 HEVC-with-Alpha 播放动画（Safari 版素材）
 │   ├── assets/preview/      #   GIF 预览（README 展示用，拼音命名）
-│   └── scripts/prepack-check.js  # 发布前健康检查
+│   ├── scripts/prepack-check.js  # 发布前健康检查
+│   └── scripts/publish.js   # 双格式发布脚本（按 tag 只打对应素材目录）
 ├── DESIGN.md                # 设计与实现文档
 └── LICENSE                  # MIT
 ```
@@ -185,7 +208,7 @@ DSH 设置 → 「桌宠配置」：
 
 ## 效果预览
 
-全部动画（640×360，插件实际播放用的资源）——GIF 预览存放于仓库 `dsh-pet/assets/preview/`（raw 直链渲染，文件名采用拼音便于跨平台）；完整透明视频见 `dsh-pet/assets/thumb/`：
+全部动画（640×360，插件实际播放用的资源）——GIF 预览存放于仓库 `dsh-pet/assets/preview/`（raw 直链渲染，文件名采用拼音便于跨平台）；完整透明视频见插件包 `dsh-pet/assets/webm/`（VP9-alpha，Chrome/Edge/Firefox）与 `dsh-pet/assets/mov/`（HEVC-alpha，Safari）：
 
 **待机 / 转向**
 

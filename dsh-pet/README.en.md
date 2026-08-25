@@ -18,10 +18,13 @@
 ## 🚀 Quick Start (Install the Plugin)
 
 ```sh
-dsh plugin --profile web add dsh-pet
+dsh plugin --profile web add dsh-pet          # default: Chrome/Edge/Firefox build (webm)
+dsh plugin --profile web add dsh-pet@hevc     # Safari build (HEVC-alpha mov)
 ```
 
 Restart `dsh web` and the pet appears in the bottom-right corner — all transparent animations, ready to use out of the box, no generation pipeline required.
+
+> 💡 The version is bound to the video format (injected at publish time; no runtime browser sniffing): the `latest` build ships `.webm` (VP9-alpha), the `hevc` build ships `.mov` (HEVC with Alpha). Safari users should install the `@hevc` build, otherwise the background renders black.
 
 > 💡 Want to craft your own one-of-a-kind pet? Clone [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) and use the bundled asset pipeline (AI prompts → green-screen video → transparent animation, generated with Doubao) to generate one from scratch — fully reproducible.
 
@@ -51,15 +54,15 @@ Restart `dsh web` and the pet appears in the bottom-right corner — all transpa
 
 All user data lives under `$DSH_HOME/dsh-pet/` (one directory per plugin; future character packs follow the same pattern with their own plugin id):
 
-| Layer                      | Path                                 | Purpose                                                                                                                 |
-| -------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Default config (read-only) | `assets/config.jsonc` in the package | Complete reference: pet list / animation pools (idle/turn/drag/clicks/moves/categories) / playback weights              |
-| User config                | `$DSH_HOME/dsh-pet/main-config.json` | Override fragment: optionally override `pets` / `animations` / `animationWeights`; missing fields fall back to defaults |
-| User animations (optional) | `$DSH_HOME/dsh-pet/main-animation/`  | Drop `.webm` files here to make them playable — **takes precedence over the packaged assets**                           |
+| Layer                      | Path                                 | Purpose                                                                                                                                                    |
+| -------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default config (read-only) | `assets/config.jsonc` in the package | Complete reference: pet list / animation pools (idle/turn/drag/clicks/moves/categories) / playback weights                                                 |
+| User config                | `$DSH_HOME/dsh-pet/main-config.json` | Override fragment: optionally override `pets` / `animations` / `animationWeights`; missing fields fall back to defaults                                    |
+| User animations (optional) | `$DSH_HOME/dsh-pet/main-animation/`  | Drop `.webm` / `.mov` files here to make them playable — **takes precedence over the packaged assets** (put them in the matching `webm/` or `mov/` subdir) |
 
 - The settings page shows these paths at the bottom
-- Custom animations: put `xxx.webm` into `main-animation/`, name it in an animation pool/category as `"xxx"`, then **refresh the page** (no DSH restart needed)
-- Format: `.webm` only; **transparent animations require VP9 Alpha encoding** (same spec as the packaged assets — plain webm will show a black background)
+- Custom animations: put `xxx.webm` into `main-animation/webm/` (or `xxx.mov` into `main-animation/mov/`), name it in an animation pool/category as `"xxx"`, then **refresh the page** (no DSH restart needed)
+- Format: `.webm` requires **VP9 Alpha** encoding (Chrome/Edge/Firefox); `.mov` requires **HEVC with Alpha** (Safari, hvc1 tag) — same spec as the packaged assets; a plain encode will show a black background
 - After editing the user config, **refresh the page** to apply
 - Fill animation names by referring to the default config to avoid referencing missing animations
 
@@ -91,7 +94,7 @@ What the pet looks like running inside the DSH Web UI:
   <img src="https://raw.githubusercontent.com/PC2005-cloud/dsh-pet/main/https://raw.githubusercontent.com/PC2005-cloud/dsh-pet/main/dsh-pet/assets/preview/beishubiao-tuozhuai-xuankong-fankui.gif" width="160" alt="Dragged by the mouse" title="Dragged by the mouse">
 </p>
 
-All animations live in the repo under `dsh-pet/assets/thumb/`.
+All animations live in the repo under `dsh-pet/assets/webm/` (VP9-alpha) and `dsh-pet/assets/mov/` (HEVC-alpha).
 
 ## 📚 A Complete Project (More Than a Plugin)
 

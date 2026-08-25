@@ -45,7 +45,7 @@ video/（原始绿幕 mp4 + 水印 mask；源视频从 Releases assets-videos �
   - Windows 下 `subprocess.run(text=True)` 需 `encoding="utf-8", errors="replace"`
   - 绿幕抠像最终采用 **HSV 色相方案**（非 chromakey/RGB 差值）：仅绿相 70~170° 且饱和度/明度 ≥0.15 才抠掉，人物保留 97~98%、绿幕清除 99.6%+，不误伤亮绿残边/白衣/蓝衣
   - 水平居中用**非透明像素 x 中位数**（非 bbox 中点）：手/零食等扩展物会把 bbox 中心带偏 200px，中位数全片稳定
-- step04 产物同步到 `dsh-pet/assets/thumb/`（npm 包自包含播放资源）
+- step04 产物同步到 `dsh-pet/assets/webm/`（npm 包自包含播放资源；Safari 额外经独立流水线产出 `assets/mov/` HEVC-alpha）
 
 ## 3. 插件架构（dsh-pet/）
 
@@ -58,7 +58,7 @@ dsh-pet/
 ├── tsconfig.json / tsdown.config.mjs   # TS + tsdown 构建配置（双入口 client/host）
 ├── assets/
 │   ├── config.jsonc        # 配置单一来源（pets 默认宠物 + 动画池/分类权重）
-│   ├── thumb/*.webm        # 640×360 播放变体
+│   ├── thumb/*.webm        # 640×360 播放变体（现存仓库布局；当前实现见 assets/webm 与 assets/mov）
 │   └── preview/*.gif       # README 预览（拼音命名）
 ├── src/
 │   ├── host/index.ts       # host 半侧源码（/pet 路由）
@@ -158,7 +158,7 @@ pickNext() 按权重选下一个 ───────────────�
 
 ```
 1. scripts/*.py（素材链）    video/ → step01 → step02（自动或 PR 导入）→ step03 → step04
-2. step04 → dsh-pet/assets/thumb/（同步）
+2. step04 → dsh-pet/assets/webm/（同步；Safari mover 由独立流水线产出到 assets/mov/）
 3. prepack-check.js          npm publish 前健康检查
 4. npm pack                  检查 tarball（~10MB）
 5. npm publish               之后 dsh plugin add dsh-pet 一条命令安装

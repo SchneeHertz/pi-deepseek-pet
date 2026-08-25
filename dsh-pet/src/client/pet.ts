@@ -17,6 +17,11 @@ import type { jsx } from 'react/jsx-runtime';
 /** 运行时配置（PetMulti 加载后赋值；PetCard 只读） */
 let config: ClientConfig = EMPTY_CONF;
 
+/** 播放动画扩展名：发布期注入，不做运行时判断。
+ *  源码里是占位符 __PET_EXT__；publish 的 prepack 链用 scripts/inject-ext.js
+ *  在 bundle 之后把构建产物替换为 .webm / .mov，本地开发同样用它切换。 */
+const THUMB_EXT: string = '__PET_EXT__';
+
 /** 余额气泡展示时长（ms）：定时自动消失，与动画生命周期解耦 */
 const BUBBLE_DURATION_MS = 10 * 1000;
 
@@ -112,7 +117,7 @@ export function makePetUI(rt: {
       const target = frontRef.current === 0 ? videoBRef : videoARef;
       const el = target.current;
       if (!el) return;
-      el.src = '/dsh-pet-7340/thumb/' + encodeURIComponent(next) + '.webm';
+      el.src = '/dsh-pet-7340/thumb/' + encodeURIComponent(next) + THUMB_EXT;
       el.loop = !nextOnce;
       el.muted = true;
       el.autoplay = true;

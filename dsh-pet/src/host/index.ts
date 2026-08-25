@@ -5,7 +5,8 @@
  * 流式返回给浏览器。源文件（src/host/index.ts）由 tsdown 构建为 lib/index.js。
  *
  * 路由：
- *   /dsh-pet-7340/thumb/<动画名>.webm  → $DSH_HOME/dsh-pet/main-animation/（用户目录，优先）→ 插件包内 assets/thumb/
+ *   /dsh-pet-7340/thumb/<动画名>.<ext>  → 按扩展名分流：.webm→$DSH_HOME/dsh-pet/main-animation/webm（用户目录，优先）→ 包内 assets/webm；
+ *                                       .mov → $DSH_HOME/dsh-pet/main-animation/mov（用户目录，优先）→ 包内 assets/mov
  *   /dsh-pet-7340/config.jsonc        → 插件包内 assets/config.jsonc（默认值，只读）
  *   /dsh-pet-7340/config              → 用户覆盖配置（pets / animations / animationWeights，JSON）
  *                                GET 读取、PUT 保存、DELETE 恢复默认（删除用户层）
@@ -40,6 +41,7 @@ const ROUTE_PREFIX = '/dsh-pet-7340';
 const MIME: Record<string, string> = {
   '.webm': 'video/webm',
   '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
   '.png': 'image/png',
   '.json': 'application/json; charset=utf-8',
   '.jsonc': 'application/json; charset=utf-8',
@@ -137,15 +139,22 @@ function sanitizeUserConfig(raw: unknown): { pets: unknown[]; notificationsEnabl
 /** 宿主插件主体：注册 `/dsh-pet-7340` 前缀路由。 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入的 ctx（webServer/locale 等 service 无静态类型）
 export function apply(ctx: any): void {
-  const thumbRoot = join(PACKAGE_ROOT, 'assets', 'thumb');
   // 用户数据根：配置与用户素材统一收敛于此（扩展包按 <插件id> 各自建目录）
   const userRoot = join(resolveDshHome(), 'dsh-pet');
   // 用户覆盖配置（pets / animations / animationWeights 覆盖片段）
   const userConfigPath = join(userRoot, 'main-config.json');
-  // 用户动画目录（thumb 播放时优先于包内 assets/thumb）
+  // 用户动画目录（thumb 播放时优先于包内素材；按扩展名在 webm/mov 子目录分流）
   const thumbUserRoot = join(userRoot, 'main-animation');
   // 手动触发计数：/balance 命令 +1，client 轮询变化后立即刷新余额并播动画（进程内内存态，重启归零）
   let balanceTriggerCount = 0;
+
+  /** 包内动画素材根：按扩展名分格式存放（assets/webm 或 assets/mov）。 */
+  const assetRootFor = (ext: string): string =>
+    ext === '.mov' ? join(PACKAGE_ROOT, 'assets', 'mov') : join(PACKAGE_ROOT, 'assets', 'webm');
+
+  /** 用户动画根：同扩展名分流（main-animation/webm 或 main-animation/mov）。 */
+  const userRootFor = (ext: string): string =>
+    ext === '.mov' ? join(thumbUserRoot, 'mov') : join(thumbUserRoot, 'webm');
 
   ctx.effect(
     () =>
@@ -288,20 +297,26 @@ export function apply(ctx: any): void {
             return;
           }
 
-          // 动画文件：/dsh-pet-7340/thumb/<file>，查找顺序 = 用户动画目录 → 包内 assets/thumb
+          // 动画文件：/dsh-pet-7340/thumb/<file>，按扩展名分格式目录
+          // （.webm → assets/webm，.mov → assets/mov），查找顺序 = 用户动画目录 → 包内素材
           if (scope !== 'thumb') {
             res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
             res.end('dsh-pet: expected /dsh-pet-7340/thumb/<file>');
             return;
           }
           const fileName = nameParts.join('/');
-          const file = resolveExisting(thumbUserRoot, fileName) ?? resolveExisting(thumbRoot, fileName);
+          const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
+          if (ext !== '.webm' && ext !== '.mov') {
+            res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end('dsh-pet: unsupported animation format (expected .webm or .mov)');
+            return;
+          }
+          const file = resolveExisting(userRootFor(ext), fileName) ?? resolveExisting(assetRootFor(ext), fileName);
           if (file === undefined) {
             res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
             res.end('dsh-pet: asset not found');
             return;
           }
-          const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
           await sendFile(res, file, MIME[ext] ?? 'application/octet-stream');
         },
       }),

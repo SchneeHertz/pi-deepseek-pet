@@ -1,6 +1,6 @@
 {
   "name": "dsh-pet",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A floating desktop pet for the DeepSeek Harness Web UI: idle breathing, occasional direction turns, random actions, and screen wandering.",
   "keywords": [
     "dsh",
@@ -28,9 +28,10 @@
     "exports['./client'] —— 浏览器半侧入口，DSH 模块系统按它提供 /plugins/dsh-pet/client.js",
     "dsh.bundle.patch —— 声明本包是 bundle，patch 文件是 cordis.patch.yml（安装后自动进层栈）",
     "dsh.client —— 声明浏览器半侧的注入依赖和平台（web）",
-    "files —— npm publish 只发这些目录/文件（assets/thumb 播放资源；assets/preview 的 GIF 仅 README 展示、不入包）",
-    "scripts.encode:thumbs —— 转码管线（step03 母版 → assets/thumb 360×360）",
-    "scripts.prepack —— 发布前自动健康检查",
+    "files —— npm publish 只发这些目录/文件（assets/webm 播放资源（Chrome/Edge/Firefox 版）；assets/mov（Safari HEVC-alpha 版，由发布脚本按 tag 选用）；assets/preview 的 GIF 仅 README 展示、不入包）",
+    "scripts.encode:webm —— 转码管线（step03 母版 → assets/webm 640×360 VP9-alpha）",
+    "scripts.prepack —— 发布前自动检查链：typecheck/lint/format → prepack-check（素材健康检查）；不构建（构建+注入由 prepare:webm|mov 负责）",
+    "scripts.prepare:webm|mov —— 发布前微调（构建 + 注入 THUMB_EXT 格式）；npm publish 手动执行",
     "peerDependencies —— 运行时由宿主（DSH）提供的模块，本包不打包它们",
     "================================================"
   ],
@@ -52,7 +53,7 @@
   "files": [
     "lib",
     "src",
-    "assets/thumb",
+    "assets/webm",
     "assets/fonts",
     "assets/pic",
     "assets/config.jsonc",
@@ -61,8 +62,9 @@
   "scripts": {
     "bundle": "tsdown",
     "watch": "tsdown --watch",
-    "prepare": "npm run bundle",
-    "prepack": "npm run typecheck && npm run lint && npm run format:check && npm run bundle && node scripts/prepack-check.js",
+    "prepack": "npm run typecheck && npm run lint && npm run format:check && node scripts/prepack-check.js",
+    "prepare:webm": "node scripts/prepare.js webm",
+    "prepare:mov": "node scripts/prepare.js mov",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
