@@ -1,6 +1,6 @@
 import type { TransientEventType, VisualPhase } from '@pi-deepseek-pet/protocol';
 import type { AnimationManifest, MoveParams } from './manifest.js';
-import { pick, pickWeighted, rollAmbientKind, type RandomSource } from './pickers.js';
+import { pick, pickWeighted, rollAmbientKind, type AmbientRollKind, type RandomSource } from './pickers.js';
 
 export type Facing = 'left' | 'right';
 export type PlaybackKind = 'ambient' | 'state' | 'event' | 'click' | 'manual' | 'drag' | 'buffer';
@@ -64,6 +64,9 @@ export class PetController {
   #generation = 0;
   #pendingEvents: TransientEventType[] = [];
   #playback: PlaybackInstruction;
+  #ambientKind?: AmbientRollKind;
+  #idleBreakPending = false;
+  #excludeIdleOnce = false;
 
   constructor(manifest: AnimationManifest, options: PetControllerOptions = {}) {
     this.#manifest = manifest;
@@ -162,6 +165,7 @@ export class PetController {
     }
 
     if (this.#playback.kind === 'ambient' && this.#persistentPhase === 'idle') {
+      if (this.#ambientKind === 'category') this.#idleBreakPending = true;
       this.#startAmbient();
       return true;
     }
@@ -203,7 +207,18 @@ export class PetController {
   }
 
   #startAmbient(): void {
-    const kind = rollAmbientKind(this.#rng(), this.#manifest.weights);
+    if (this.#idleBreakPending) {
+      this.#idleBreakPending = false;
+      this.#excludeIdleOnce = true;
+      this.#ambientKind = 'idle';
+      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), {
+        phase: 'idle',
+      });
+      return;
+    }
+    const kind = rollAmbientKind(this.#rng(), this.#manifest.weights, this.#excludeIdleOnce);
+    this.#excludeIdleOnce = false;
+    this.#ambientKind = kind;
     if (kind === 'idle') {
       this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), {
         phase: 'idle',

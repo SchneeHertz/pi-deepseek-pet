@@ -99,7 +99,8 @@ export class PetWindowManager {
     const height = Math.round((settings.size * 9) / 16);
     this.stopRoam();
     window.setAlwaysOnTop(settings.alwaysOnTop, 'floating');
-    window.setSize(settings.size, height, true);
+    // 用 setBounds 而非 setSize：Windows 上 resizable:false 窗口的 setSize 会被最小尺寸钳制拒绝
+    window.setBounds({ width: settings.size, height });
     this.ensureVisible(false);
   }
 
@@ -142,7 +143,15 @@ export class PetWindowManager {
     };
     const display = screen.getDisplayMatching(desired);
     const clamped = clampWindowBounds(desired, display.workArea, Math.max(desired.width, desired.height));
-    window.setPosition(clamped.x, clamped.y, false);
+    // 用 setBounds 显式携带尺寸而非 setPosition：Windows 小数缩放（如 150%）下
+    // 逐次 setPosition 会让窗口高度每次 +1px 逐渐变大（Electron DPI 转换缺陷）
+    const size = this.#settingsStore.value.size;
+    window.setBounds({
+      x: clamped.x,
+      y: clamped.y,
+      width: size,
+      height: Math.round((size * 9) / 16),
+    });
   }
 
   endDrag(): void {

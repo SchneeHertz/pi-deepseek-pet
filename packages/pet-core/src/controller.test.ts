@@ -88,6 +88,29 @@ describe('PetController', () => {
     );
   });
 
+  it('inserts idle after a category action and skips idle on the next roll', () => {
+    // constructor pick, category roll, category pick, category action, idle pick, excluded roll
+    const rolls = [0.9, 0.5, 0, 0, 0, 0];
+    const controller = new PetController(manifest, {
+      initialPhase: 'idle',
+      rng: () => rolls.shift() ?? 0.9,
+    });
+    // First chain roll (0.5) lands in the category bucket.
+    controller.animationEnded(controller.snapshot.playback.generation);
+    const categoryGeneration = controller.snapshot.playback.generation;
+    expect(controller.snapshot.playback.kind).toBe('ambient');
+    expect(manifest.idle).not.toContain(controller.snapshot.playback.animation);
+
+    // Category animation ends -> an idle is inserted before the next roll.
+    controller.animationEnded(categoryGeneration);
+    expect(controller.snapshot.playback.animation).toBe(manifest.idle[0]);
+    const idleGeneration = controller.snapshot.playback.generation;
+
+    // The roll after the inserted idle (0) would normally pick idle, but it is excluded.
+    controller.animationEnded(idleGeneration);
+    expect(controller.snapshot.playback.animation).toBe(manifest.turn[0]);
+  });
+
   it('falls back when a runtime asset fails', () => {
     const diagnostics: string[] = [];
     const controller = new PetController(manifest, { onDiagnostic: (message) => diagnostics.push(message) });

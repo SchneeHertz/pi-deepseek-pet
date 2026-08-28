@@ -38,6 +38,8 @@ Main 启用 `contextIsolation`，关闭 `nodeIntegration`，Preload 使用 sandb
 
 `PetController` 保存最新持续状态。高优先级动作结束后回到最新状态，而不是无条件 idle；拖拽释放先播放一次待机缓冲，再恢复状态链。每次播放分配 generation，旧 video 的 `loadeddata`/`ended`/`error` 回调不能覆盖新状态。
 
+待机随机链中，分类动作结束后先强制插入一次待机呼吸动画，再继续随机；且插入的这次待机之后的下一次随机不会抽到 idle（权重重新归一化到 turn/move/category）。
+
 所有随机源与时钟都可注入，因此权重、过滤、优先级和竞态测试可重复。Core 不导入 DOM、React 或 Electron。
 
 ## 4. 本机协议

@@ -77,6 +77,44 @@ test('transparent desktop window loads assets and accepts authenticated API acti
     );
     expect(movedBounds?.x).not.toBe(windowOptions?.bounds.x);
 
+    // 回归：斜向拖动不得改变窗口尺寸（Windows 150% 缩放下 setPosition 曾导致高度逐次 +1px 变大）
+    await page.evaluate(() => {
+      window.piPet.beginWindowDrag(400, 400);
+      for (let i = 1; i <= 30; i++) window.piPet.dragWindow(400 - i * 8, 400 - i * 3);
+      window.piPet.endWindowDrag();
+    });
+    const draggedBounds = await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+        ?.getBounds(),
+    );
+    expect(draggedBounds?.width).toBe(movedBounds?.width);
+    expect(draggedBounds?.height).toBe(movedBounds?.height);
+
+    // 回归：尺寸调整必须双向生效（resizable:false 下 setSize 曾被 Windows 最小尺寸钤制拒绝）
+    await page.evaluate(() => window.piPet.updateSettings({ size: 320 }));
+    await expect
+      .poll(async () => {
+        const bounds = await electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+            ?.getBounds(),
+        );
+        return bounds?.width;
+      })
+      .toBe(320);
+    await page.evaluate(() => window.piPet.updateSettings({ size: 462 }));
+    await expect
+      .poll(async () => {
+        const bounds = await electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+            ?.getBounds(),
+        );
+        return bounds?.width;
+      })
+      .toBe(462);
+
     const resetResponse = await fetch(`${descriptor.baseUrl}/api/v1/pet/actions`, {
       method: 'POST',
       headers: { authorization: `Bearer ${descriptor.token}`, 'content-type': 'application/json' },

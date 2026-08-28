@@ -23,4 +23,12 @@ describe('pickers', () => {
     expect(rollAmbientKind(0.18, weights)).toBe('move');
     expect(rollAmbientKind(0.5, weights)).toBe('category');
   });
+
+  it('remaps the roll to exclude the idle bucket while preserving the rest', () => {
+    const weights = { idle: 10, turn: 5, move: 5 };
+    expect(rollAmbientKind(0, weights, true)).toBe('turn');
+    expect(rollAmbientKind(0.1, weights, true)).toBe('move');
+    expect(rollAmbientKind(0.5, weights, true)).toBe('category');
+    expect(rollAmbientKind(0.999, weights, true)).toBe('category');
+  });
 });

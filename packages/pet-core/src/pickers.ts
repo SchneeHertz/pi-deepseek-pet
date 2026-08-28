@@ -36,8 +36,17 @@ export function pickWeighted<T extends WeightedEntry>(
 
 export type AmbientRollKind = 'idle' | 'turn' | 'move' | 'category';
 
-export function rollAmbientKind(roll: number, weights: { idle: number; turn: number; move: number }): AmbientRollKind {
+export function rollAmbientKind(
+  roll: number,
+  weights: { idle: number; turn: number; move: number },
+  excludeIdle = false,
+): AmbientRollKind {
   const value = Math.min(1 - Number.EPSILON, Math.max(0, roll));
+  if (excludeIdle) {
+    const split = weights.idle / 100;
+    const remaining = Math.max(Number.EPSILON, 1 - split);
+    return rollAmbientKind(split + value * remaining, weights);
+  }
   if (value < weights.idle / 100) return 'idle';
   if (value < (weights.idle + weights.turn) / 100) return 'turn';
   if (value < (weights.idle + weights.turn + weights.move) / 100) return 'move';
