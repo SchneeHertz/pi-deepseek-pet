@@ -1,0 +1,44 @@
+{
+  "name": "@pi-deepseek-pet/core",
+  "version": "0.1.0",
+  "description": "Host-independent animation controller and movement geometry for Pi DeepSeek Pet",
+  "author": "SchneeHertz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SchneeHertz/pi-deepseek-pet.git",
+    "directory": "packages/pet-core"
+  },
+  "homepage": "https://github.com/SchneeHertz/pi-deepseek-pet#readme",
+  "bugs": "https://github.com/SchneeHertz/pi-deepseek-pet/issues",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src/index.ts",
+    "src/constants.ts",
+    "src/controller.ts",
+    "src/manifest.ts",
+    "src/motion.ts",
+    "src/pickers.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@pi-deepseek-pet/protocol": "workspace:*",
+    "jsonc-parser": "^3.3.1",
+    "zod": "^3.25.56"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0"
+  },
+  "license": "MIT"
+}

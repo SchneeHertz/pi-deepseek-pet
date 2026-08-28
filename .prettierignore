@@ -1,0 +1,9 @@
+node_modules
+dist
+assets/animations
+assets/preview
+media/video
+media/prompts
+media/tools
+temp
+pnpm-lock.yaml

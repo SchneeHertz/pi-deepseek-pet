@@ -1,0 +1,24 @@
+export const PROTOCOL_VERSION = 1 as const;
+export const DEFAULT_API_PORT = 17_340;
+export const MAX_JSON_BODY_BYTES = 16 * 1024;
+export const SOURCE_OFFLINE_TTL_MS = 30_000;
+export const SOURCE_REMOVE_TTL_MS = 60_000;
+export const HEARTBEAT_INTERVAL_MS = 10_000;
+export const MAX_BUBBLE_LENGTH = 240;
+export const MIN_BUBBLE_DURATION_MS = 500;
+export const MAX_BUBBLE_DURATION_MS = 30_000;
+
+export const API_ERROR_CODES = [
+  'INVALID_REQUEST',
+  'UNAUTHORIZED',
+  'FORBIDDEN_ORIGIN',
+  'NOT_FOUND',
+  'SEQUENCE_CONFLICT',
+  'PAYLOAD_TOO_LARGE',
+  'RATE_LIMITED',
+  'METHOD_NOT_ALLOWED',
+  'UNSUPPORTED_MEDIA_TYPE',
+  'INTERNAL_ERROR',
+] as const;
+
+export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

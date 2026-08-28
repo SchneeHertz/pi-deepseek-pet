@@ -1,47 +1,42 @@
-# ── 素材处理链中间产物（跑 scripts/*.py 可再生，不入仓库） ──
-step01/
-step02/
-step03/
-step04/
+# Dependencies and build output
+node_modules/
+dist/
+apps/desktop/release/
+*.tsbuildinfo
 
-# ── 素材源（托管在 GitHub Releases assets-videos，不入仓库） ──
-video/*.mp4
+# Test and temporary output (all temporary files stay under this directory)
+temp/
+test-results/
+playwright-report/
 
-# ── PR 手工抠像工作数据（本地工作数据，同 step 中间产物，不入库） ──
-#   pr/      PR 导出的透明 .mov（路线 B 的输入）
-#   prproj/  PR 工程目录（.prproj + 遮罩缓存 + 自动保存，约 2GB）
-pr/
-prproj/
+# Material pipeline intermediates
+media/step01/
+media/step02/
+media/step03/
+media/step04/
+media/pr/
+media/prproj/
+media/.tools/
+media/video/*.mp4
 
-# ── 本地工具（机器相关，不入仓库） ──
-.tools/
-
-# ── Python ──
+# Python
 __pycache__/
 *.py[cod]
 .venv/
 .uv-cache/
 
-# ── Node ──
-node_modules/
+# Logs and local caches
+*.log
 .npm-cache/
 .npm-tmp-cache/
-npm-debug.log*
 *.tgz
 
-# ── 临时/备份目录 ──
-temp/
-
-# ── dsh-pet 构建产物（由 src/ 用 tsdown 产出，不入仓库；依赖 npm run build 生成）──
-# 仅忽略构建出的 JS；lib/types 为手写类型声明，保留跟踪。
-dsh-pet/lib/*.js
-
-# ── IDE / 编辑器 ──
+# Editors and OS files
 .idea/
 .vscode/
 *.swp
-
-# ── 系统文件 ──
 .DS_Store
 Thumbs.db
 desktop.ini
+
+PI_DESKTOP_PET_PLAN.md

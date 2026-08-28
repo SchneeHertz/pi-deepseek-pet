@@ -1,0 +1,109 @@
+{
+  "name": "pi-deepseek-pet-desktop",
+  "version": "0.1.0",
+  "description": "Transparent Pi DeepSeek Pet desktop application driven by Pi lifecycle status",
+  "author": "SchneeHertz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SchneeHertz/pi-deepseek-pet.git",
+    "directory": "apps/desktop"
+  },
+  "homepage": "https://github.com/SchneeHertz/pi-deepseek-pet#readme",
+  "bugs": "https://github.com/SchneeHertz/pi-deepseek-pet/issues",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "vite build && tsup",
+    "dev": "concurrently -k -s first \"pnpm dev:main\" \"pnpm dev:renderer\" \"pnpm dev:electron\"",
+    "dev:main": "tsup --watch",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:electron": "wait-on tcp:5173 file:dist/main/index.js file:dist/preload/index.cjs && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src/main",
+    "test:e2e": "pnpm --workspace-root build && playwright test --config playwright.config.ts",
+    "package:win": "pnpm --workspace-root build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@pi-deepseek-pet/core": "workspace:*",
+    "@pi-deepseek-pet/protocol": "workspace:*",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.56"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.1",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.12",
+    "tsup": "^8.5.0",
+    "vite": "^7.2.2",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "io.github.schneehertz.pideepseekpet",
+    "productName": "Pi DeepSeek Pet",
+    "copyright": "Copyright © 2026 SchneeHertz; original work © 2026 PC2005-cloud",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../assets/animations/webm",
+        "to": "assets/animations/webm"
+      },
+      {
+        "from": "../../assets/fonts",
+        "to": "assets/fonts"
+      },
+      {
+        "from": "../../assets/pic",
+        "to": "assets/pic"
+      },
+      {
+        "from": "../../assets/animation-manifest.jsonc",
+        "to": "assets/animation-manifest.jsonc"
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "resources/icon.png"
+      },
+      {
+        "from": "../../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../../ASSET_LICENSE.md",
+        "to": "ASSET_LICENSE.md"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Pi-DeepSeek-Pet-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "license": "resources/installer-license.txt",
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "license": "MIT"
+}

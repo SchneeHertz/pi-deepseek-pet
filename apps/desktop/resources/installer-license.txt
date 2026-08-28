@@ -1,0 +1,15 @@
+PI DEEPSEEK PET LICENSE NOTICE
+
+Pi DeepSeek Pet is maintained by SchneeHertz:
+https://github.com/SchneeHertz/pi-deepseek-pet
+
+It is based on the original PC2005-cloud/dsh-pet project. Thanks to its author and contributors for the original desktop-pet implementation, animation assets, and media tooling:
+https://github.com/PC2005-cloud/dsh-pet
+
+Both copyright notices are retained in LICENSE. Software code is licensed under the MIT License (see LICENSE after installation).
+
+Animation, preview, font, image, prompt, source-video, character and derivative visual assets are licensed for personal study, research, non-commercial display, and non-commercial derivative work only unless the asset rights holder gives separate written permission.
+
+These assets may not be used in paid software, advertising, commercial distribution, paid services, or other for-profit contexts without separate permission. Redistribution must retain ASSET_LICENSE.md and attribution.
+
+Third-party trademarks, character elements, fonts, and generation-tool terms remain subject to their respective owners. This notice does not grant third-party rights.

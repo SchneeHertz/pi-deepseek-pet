@@ -1,0 +1,51 @@
+{
+  "name": "pi-deepseek-pet-extension",
+  "version": "0.1.0",
+  "description": "Non-blocking Pi lifecycle status bridge for Pi DeepSeek Pet",
+  "author": "SchneeHertz",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "desktop-pet"
+  ],
+  "type": "module",
+  "files": [
+    "src/index.ts",
+    "src/status-mapper.ts",
+    "src/transport.ts",
+    "dist",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@pi-deepseek-pet/protocol": "workspace:*",
+    "tsup": "^8.5.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SchneeHertz/pi-deepseek-pet.git",
+    "directory": "packages/pi-extension"
+  },
+  "homepage": "https://github.com/SchneeHertz/pi-deepseek-pet#readme",
+  "bugs": "https://github.com/SchneeHertz/pi-deepseek-pet/issues",
+  "license": "MIT"
+}

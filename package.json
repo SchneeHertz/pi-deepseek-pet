@@ -1,0 +1,46 @@
+{
+  "name": "pi-deepseek-pet-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi DeepSeek Pet desktop application and Pi lifecycle extension",
+  "author": "SchneeHertz",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SchneeHertz/pi-deepseek-pet.git"
+  },
+  "homepage": "https://github.com/SchneeHertz/pi-deepseek-pet#readme",
+  "bugs": "https://github.com/SchneeHertz/pi-deepseek-pet/issues",
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @pi-deepseek-pet/protocol build && pnpm --filter @pi-deepseek-pet/core build && pnpm --filter pi-deepseek-pet-extension build && pnpm --filter pi-deepseek-pet-desktop build",
+    "dev": "pnpm --filter pi-deepseek-pet-desktop dev",
+    "dev:extension": "pi -e ./packages/pi-extension/src/index.ts",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter pi-deepseek-pet-desktop test:e2e",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "package:extension": "pnpm build && node -e \"require('node:fs').mkdirSync('artifacts',{recursive:true})\" && pnpm --filter pi-deepseek-pet-extension pack --pack-destination artifacts",
+    "package:win": "pnpm --filter pi-deepseek-pet-desktop package:win"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.29",
+    "@vitest/coverage-v8": "^3.2.1",
+    "eslint": "^9.28.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1",
+    "vitest": "^3.2.1"
+  }
+}
