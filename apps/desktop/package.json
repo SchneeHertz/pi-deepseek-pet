@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run src/main",
     "test:e2e": "pnpm --workspace-root build && playwright test --config playwright.config.ts",
-    "package:win": "pnpm --workspace-root build && electron-builder --win nsis"
+    "package:win": "pnpm --workspace-root build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "@pi-deepseek-pet/core": "workspace:*",

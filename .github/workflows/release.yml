@@ -5,7 +5,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   installer:
@@ -25,6 +25,13 @@ jobs:
       - run: pnpm test:e2e
       - run: pnpm package:win
       - run: pnpm package:extension
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            apps/desktop/release/*.exe
+            artifacts/*.tgz
       - uses: actions/upload-artifact@v4
         with:
           name: pi-deepseek-pet-release
