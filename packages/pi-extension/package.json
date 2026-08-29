@@ -1,6 +1,6 @@
 {
   "name": "pi-deepseek-pet-extension",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Non-blocking Pi lifecycle status bridge for Pi DeepSeek Pet",
   "author": "SchneeHertz",
   "keywords": [

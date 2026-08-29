@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -12,6 +13,8 @@ import {
 
 const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const;
 const EVENT_MAX_AGE_MS = 2 * 60_000;
+export const MIN_STATE_INTERVAL_MS = 1_500;
+export const STATE_SETTLE_MS = 150;
 
 export interface TransportDiagnostics {
   bridgeFile: string;
@@ -29,6 +32,8 @@ export interface TransportOptions {
   readBridge?: () => Promise<BridgeDescriptor | undefined>;
   now?: () => number;
   timeoutMs?: number;
+  minStateIntervalMs?: number;
+  stateSettleMs?: number;
   debug?: boolean;
 }
 
@@ -40,10 +45,12 @@ interface QueuedEvent {
 export class PiPetTransport {
   readonly #sourceId: string;
   readonly #bridgeFile: string;
-  readonly #fetch: typeof fetch;
+  readonly #fetch?: typeof fetch;
   readonly #readBridgeOverride?: () => Promise<BridgeDescriptor | undefined>;
   readonly #now: () => number;
   readonly #timeoutMs: number;
+  readonly #minStateIntervalMs: number;
+  readonly #stateSettleMs: number;
   readonly #debug: boolean;
   #currentState?: SourceState;
   #latestState?: SourceState;
@@ -59,14 +66,18 @@ export class PiPetTransport {
   #flushing = false;
   #abortControllers = new Set<AbortController>();
   #lastAppInstanceId?: string;
+  #lastStateSentAt?: number;
+  #stateNotBefore = 0;
 
   constructor(options: TransportOptions) {
     this.#sourceId = options.sourceId;
     this.#bridgeFile = options.bridgeFile ?? defaultBridgeFile();
-    this.#fetch = options.fetch ?? fetch;
+    this.#fetch = options.fetch;
     this.#readBridgeOverride = options.readBridge;
     this.#now = options.now ?? Date.now;
     this.#timeoutMs = options.timeoutMs ?? 450;
+    this.#minStateIntervalMs = normalizeDelay(options.minStateIntervalMs, MIN_STATE_INTERVAL_MS);
+    this.#stateSettleMs = normalizeDelay(options.stateSettleMs, STATE_SETTLE_MS);
     this.#debug = options.debug ?? false;
     this.#enabled = process.env.PI_DEEPSEEK_PET_DISABLED !== '1';
   }
@@ -94,13 +105,14 @@ export class PiPetTransport {
   publishState(state: SourceState): void {
     this.#currentState = state;
     this.#latestState = state;
-    this.#schedule(0);
+    if (this.#lastStateSentAt !== undefined) this.#stateNotBefore = this.#now() + this.#stateSettleMs;
+    this.#schedule(this.#remainingStateDelay());
   }
 
   publishEvent(event: TransientEvent): void {
     this.#events.push({ event, expiresAt: this.#now() + EVENT_MAX_AGE_MS });
     if (this.#events.length > 20) this.#events.shift();
-    this.#schedule(0);
+    this.#schedule(0, this.#connected);
   }
 
   enable(): void {
@@ -124,6 +136,8 @@ export class PiPetTransport {
   forceReconnect(): void {
     this.#backoffIndex = 0;
     this.#lastError = undefined;
+    this.#lastStateSentAt = undefined;
+    this.#stateNotBefore = 0;
     if (this.#currentState) this.#latestState = this.#currentState;
     this.#schedule(0, true);
   }
@@ -155,15 +169,22 @@ export class PiPetTransport {
       this.#events = this.#events.filter((queued) => queued.expiresAt > this.#now());
       const bridge = await this.#readBridge();
       if (!bridge) throw new Error('bridge file is unavailable');
-      if (bridge.appInstanceId !== this.#lastAppInstanceId && this.#currentState) {
-        this.#latestState = this.#currentState;
+      if (bridge.appInstanceId !== this.#lastAppInstanceId) {
+        this.#lastStateSentAt = undefined;
+        this.#stateNotBefore = 0;
+        if (this.#currentState) this.#latestState = this.#currentState;
       }
       this.#lastAppInstanceId = bridge.appInstanceId;
 
       const state = this.#latestState;
-      if (state) {
+      const stateDelay = state ? this.#remainingStateDelay() : 0;
+      if (state && stateDelay === 0) {
         await this.#request(bridge, `/api/v1/sources/${this.#sourceId}/state`, 'PUT', state);
-        if (this.#latestState === state) this.#latestState = undefined;
+        this.#lastStateSentAt = this.#now();
+        if (this.#latestState === state) {
+          this.#latestState = undefined;
+          this.#stateNotBefore = 0;
+        }
       }
 
       while (this.#events.length > 0) {
@@ -183,7 +204,10 @@ export class PiPetTransport {
       this.#connected = true;
       this.#lastError = undefined;
       this.#backoffIndex = 0;
-      if (this.#latestState || this.#events.length > 0) this.#schedule(0);
+      if (this.#latestState || this.#events.length > 0) {
+        const delay = this.#events.length > 0 ? 0 : this.#remainingStateDelay();
+        this.#schedule(delay, true);
+      }
     } catch (error) {
       this.#connected = false;
       if (this.#currentState) this.#latestState = this.#currentState;
@@ -197,22 +221,35 @@ export class PiPetTransport {
     }
   }
 
+  #remainingStateDelay(): number {
+    if (this.#lastStateSentAt === undefined) return 0;
+    const now = this.#now();
+    return Math.max(0, this.#minStateIntervalMs - (now - this.#lastStateSentAt), this.#stateNotBefore - now);
+  }
+
   async #request(bridge: BridgeDescriptor, path: string, method: string, body?: unknown): Promise<void> {
     const controller = new AbortController();
     this.#abortControllers.add(controller);
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
     timer.unref?.();
     try {
-      const response = await this.#fetch(`${bridge.baseUrl}${path}`, {
-        method,
-        headers: {
-          authorization: `Bearer ${bridge.token}`,
-          'content-type': 'application/json',
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`desktop API returned HTTP ${response.status}`);
+      const url = `${bridge.baseUrl}${path}`;
+      const headers = {
+        authorization: `Bearer ${bridge.token}`,
+        'content-type': 'application/json',
+      };
+      const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+      const status = this.#fetch
+        ? (
+            await this.#fetch(url, {
+              method,
+              headers,
+              body: serializedBody,
+              signal: controller.signal,
+            })
+          ).status
+        : await requestLoopback(url, method, headers, serializedBody, controller.signal);
+      if (status < 200 || status >= 300) throw new Error(`desktop API returned HTTP ${status}`);
     } finally {
       clearTimeout(timer);
       this.#abortControllers.delete(controller);
@@ -246,6 +283,40 @@ export class PiPetTransport {
     this.#lastDebugAt = this.#now();
     console.debug(`[pi-deepseek-pet] transport unavailable: ${message}`);
   }
+}
+
+function requestLoopback(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: string | undefined,
+  signal: AbortSignal,
+): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const target = new URL(url);
+    if (
+      target.protocol !== 'http:' ||
+      target.hostname !== '127.0.0.1' ||
+      target.username !== '' ||
+      target.password !== ''
+    ) {
+      reject(new Error('desktop API URL must use direct HTTP on 127.0.0.1'));
+      return;
+    }
+
+    const request = httpRequest(target, { method, headers, signal, agent: false }, (response) => {
+      const status = response.statusCode ?? 0;
+      response.once('error', reject);
+      response.once('end', () => resolve(status));
+      response.resume();
+    });
+    request.once('error', reject);
+    request.end(body);
+  });
+}
+
+function normalizeDelay(value: number | undefined, fallback: number): number {
+  return value === undefined || !Number.isFinite(value) ? fallback : Math.max(0, value);
 }
 
 export function defaultBridgeFile(): string {

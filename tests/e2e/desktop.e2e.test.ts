@@ -29,6 +29,11 @@ test('transparent desktop window loads assets and accepts authenticated API acti
     await expect(page.getByTestId('pet-root')).toBeVisible();
     await expect(page.locator('video.is-front')).toHaveCount(1, { timeout: 15_000 });
 
+    // 无 Pi source 时 phase 为 offline；初始呼吸结束后仍应进入随机链，而不是重播 idle。
+    const idleLabel = 'Pi DeepSeek Pet 动画：待机呼吸休闲';
+    await expect(page.locator('.video-stage')).toHaveAttribute('aria-label', idleLabel);
+    await expect(page.locator('.video-stage')).not.toHaveAttribute('aria-label', idleLabel, { timeout: 15_000 });
+
     const windowOptions = await electronApp.evaluate(({ BrowserWindow }) => {
       const petWindow = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Pi DeepSeek Pet');
       return petWindow ? { bounds: petWindow.getBounds(), alwaysOnTop: petWindow.isAlwaysOnTop() } : undefined;

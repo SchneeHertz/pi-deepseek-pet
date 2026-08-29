@@ -51,7 +51,9 @@ pi remove npm:pi-deepseek-pet-extension
 ## 可靠性
 
 - HTTP 超时默认 450ms；事件 handler 仅入队并立即返回。
-- 状态队列只保留最新快照；事件队列最多 20 条、保留 2 分钟。
+- Bridge 请求通过 `node:http` 直连 `127.0.0.1`，不继承 Pi/Undici 的 provider 全局代理。
+- 状态首条立即发送，后续快照先经过 150ms 收敛窗口且至少间隔 1.5 秒；冷却期只保留最新快照，避免短暂 phase 让动画连续重启，也不会积压过时动作。
+- 瞬时事件独立排队，最多 20 条、保留 2 分钟；source 已注册时不受状态冷却阻塞。
 - 退避：1s → 2s → 5s → 10s → 30s。
 - 每次尝试重读 bridge 文件。
 - Desktop 实例变化时先重发当前完整快照，再补投事件。
@@ -68,6 +70,10 @@ pi remove npm:pi-deepseek-pet-extension
 | `/pet-disable`   | 禁用本进程上报并删除 source         |
 
 命令只在 `ctx.hasUI` 时通知；核心传输适用于 TUI、RPC、JSON 和 print 模式。
+
+## 故障排查
+
+旧版扩展若在启用 provider HTTP 代理时显示 `desktop API returned HTTP 502`，通常是全局代理误接管了回环请求。升级扩展后执行 `/reload` 或重启 Pi，再运行 `/pet-reconnect`。临时方案是在启动 Pi 前设置 `NO_PROXY=127.0.0.1,localhost`。
 
 ## 环境变量
 

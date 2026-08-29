@@ -1,6 +1,6 @@
 {
   "name": "@pi-deepseek-pet/protocol",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Versioned DTOs and strict validation schemas for Pi DeepSeek Pet",
   "author": "SchneeHertz",
   "repository": {

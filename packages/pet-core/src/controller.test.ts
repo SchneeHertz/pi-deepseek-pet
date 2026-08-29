@@ -72,7 +72,7 @@ describe('PetController', () => {
   });
 
   it('filters noMirror categories while facing right', () => {
-    const rolls = [0, 0.11, 0, 0.999, 0.999, 0];
+    const rolls = [0, 0, 0, 0.999, 0.999, 0];
     const controller = new PetController(manifest, {
       initialPhase: 'idle',
       rng: () => rolls.shift() ?? 0,
@@ -86,6 +86,32 @@ describe('PetController', () => {
     expect(manifest.categories.find((category) => category.noMirror)?.actions).not.toContain(
       controller.snapshot.playback.animation,
     );
+  });
+
+  it('runs the ambient chain while offline instead of looping the idle fallback', () => {
+    const controller = new PetController(manifest, { rng: () => 0 });
+    expect(controller.snapshot.persistentPhase).toBe('offline');
+    expect(controller.snapshot.playback.animation).toBe(manifest.idle[0]);
+
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.playback.kind).toBe('ambient');
+    expect(controller.snapshot.playback.phase).toBe('offline');
+    expect(controller.snapshot.playback.animation).toBe(manifest.turn[0]);
+  });
+
+  it('does not play idle twice in succession', () => {
+    const controller = new PetController(manifest, { rng: () => 0, initialPhase: 'idle' });
+    expect(controller.snapshot.playback.animation).toBe(manifest.idle[0]);
+
+    // The initial persistent idle must not roll another idle as the first ambient action.
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.playback.animation).toBe(manifest.turn[0]);
+
+    // A normally rolled idle is also followed by a non-idle ambient action.
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.playback.animation).toBe(manifest.idle[0]);
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.playback.animation).toBe(manifest.turn[0]);
   });
 
   it('inserts idle after a category action and skips idle on the next roll', () => {

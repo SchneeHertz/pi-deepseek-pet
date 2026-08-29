@@ -66,7 +66,6 @@ export class PetController {
   #playback: PlaybackInstruction;
   #ambientKind?: AmbientRollKind;
   #idleBreakPending = false;
-  #excludeIdleOnce = false;
 
   constructor(manifest: AnimationManifest, options: PetControllerOptions = {}) {
     this.#manifest = manifest;
@@ -154,7 +153,7 @@ export class PetController {
     if (
       this.#playback.kind === 'state' &&
       this.#playback.phase === this.#persistentPhase &&
-      this.#persistentPhase !== 'idle'
+      !this.#shouldRunAmbient()
     ) {
       this.#setPlayback(
         'state',
@@ -164,7 +163,7 @@ export class PetController {
       return true;
     }
 
-    if (this.#playback.kind === 'ambient' && this.#persistentPhase === 'idle') {
+    if (this.#playback.kind === 'ambient' && this.#shouldRunAmbient()) {
       if (this.#ambientKind === 'category') this.#idleBreakPending = true;
       this.#startAmbient();
       return true;
@@ -193,7 +192,7 @@ export class PetController {
   }
 
   #resumePersistent(): void {
-    if (this.#persistentPhase === 'idle' && this.#ambientActions) {
+    if (this.#shouldRunAmbient()) {
       this.#startAmbient();
       return;
     }
@@ -202,33 +201,31 @@ export class PetController {
     });
   }
 
+  #shouldRunAmbient(): boolean {
+    return this.#ambientActions && (this.#persistentPhase === 'idle' || this.#persistentPhase === 'offline');
+  }
+
   #startEvent(event: TransientEventType): void {
     this.#setPlayback('event', this.#pickFromPool(this.#manifest.eventPools[event]), { event });
   }
 
   #startAmbient(): void {
+    const phase = this.#persistentPhase;
     if (this.#idleBreakPending) {
       this.#idleBreakPending = false;
-      this.#excludeIdleOnce = true;
       this.#ambientKind = 'idle';
-      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), {
-        phase: 'idle',
-      });
+      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), { phase });
       return;
     }
-    const kind = rollAmbientKind(this.#rng(), this.#manifest.weights, this.#excludeIdleOnce);
-    this.#excludeIdleOnce = false;
+    const previousWasIdle = this.#manifest.idle.includes(this.#playback.animation);
+    const kind = rollAmbientKind(this.#rng(), this.#manifest.weights, previousWasIdle);
     this.#ambientKind = kind;
     if (kind === 'idle') {
-      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), {
-        phase: 'idle',
-      });
+      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), { phase });
       return;
     }
     if (kind === 'turn') {
-      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.turn, this.#playback.animation), {
-        phase: 'idle',
-      });
+      this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.turn, this.#playback.animation), { phase });
       return;
     }
     if (kind === 'move') {
@@ -236,7 +233,7 @@ export class PetController {
       if (availableMoves.length > 0) {
         const selected = pick(availableMoves, this.#rng);
         this.#setPlayback('ambient', selected.name, {
-          phase: 'idle',
+          phase,
           move: { ...this.#manifest.moves.default, ...selected.params },
         });
         return;
@@ -251,10 +248,10 @@ export class PetController {
     const fallbackCategories = categories.length > 0 ? categories : this.#manifest.categories;
     const category = pickWeighted(fallbackCategories, this.#rng);
     if (category) {
-      this.#setPlayback('ambient', this.#pickFromPool(category.actions, this.#playback.animation), { phase: 'idle' });
+      this.#setPlayback('ambient', this.#pickFromPool(category.actions, this.#playback.animation), { phase });
       return;
     }
-    this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), { phase: 'idle' });
+    this.#setPlayback('ambient', this.#pickFromPool(this.#manifest.idle, this.#playback.animation), { phase });
   }
 
   #pickFromPool(pool: readonly string[], exclude?: string): string {
