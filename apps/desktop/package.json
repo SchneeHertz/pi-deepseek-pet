@@ -85,6 +85,10 @@
       {
         "from": "../../ASSET_LICENSE.md",
         "to": "ASSET_LICENSE.md"
+      },
+      {
+        "from": "../../packages/pi-extension/dist/index.js",
+        "to": "pi-extension/index.js"
       }
     ],
     "win": {

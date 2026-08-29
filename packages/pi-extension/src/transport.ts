@@ -142,12 +142,15 @@ export class PiPetTransport {
     this.#schedule(0, true);
   }
 
-  async stop(): Promise<void> {
+  async stop(options: { quitDesktopIfIdle?: boolean } = {}): Promise<void> {
     this.#active = false;
     this.#clearTimers();
     for (const controller of this.#abortControllers) controller.abort();
     this.#abortControllers.clear();
-    if (this.#enabled) await this.#deleteSource();
+    if (this.#enabled) {
+      if (options.quitDesktopIfIdle) await this.#releaseSourceAndMaybeQuit();
+      else await this.#deleteSource();
+    }
     this.#connected = false;
   }
 
@@ -269,6 +272,21 @@ export class PiPetTransport {
     const bridge = await this.#readBridge().catch(() => undefined);
     if (!bridge) return;
     await this.#request(bridge, `/api/v1/sources/${this.#sourceId}`, 'DELETE').catch(() => undefined);
+  }
+
+  async #releaseSourceAndMaybeQuit(): Promise<void> {
+    const bridge = await this.#readBridge().catch(() => undefined);
+    if (!bridge) return;
+    const released = await this.#request(bridge, '/api/v1/pet/actions', 'POST', {
+      type: 'release-source',
+      sourceId: this.#sourceId,
+      quitIfIdle: true,
+    })
+      .then(() => true)
+      .catch(() => false);
+    if (!released) {
+      await this.#request(bridge, `/api/v1/sources/${this.#sourceId}`, 'DELETE').catch(() => undefined);
+    }
   }
 
   #clearTimers(): void {

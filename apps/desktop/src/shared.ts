@@ -11,11 +11,17 @@ export interface DesktopPresentation {
   onlineSourceCount: number;
 }
 
+export type PiIntegrationStatus =
+  | { state: 'disabled' }
+  | { state: 'enabled'; extensionSource: 'bundled' | 'package' }
+  | { state: 'error'; message: string };
+
 export interface RendererBootstrap {
   appVersion: string;
   manifest: AnimationManifest;
   availableAnimations: string[];
   settings: PetSettings;
+  piIntegration: PiIntegrationStatus;
   presentation: DesktopPresentation;
   assetBaseUrl: 'pet-asset://animation/';
 }
@@ -24,7 +30,8 @@ export type RendererEvent =
   | { type: 'presentation'; presentation: DesktopPresentation }
   | { type: 'transient'; event: TransientEvent; sourceLabel?: string }
   | { type: 'action'; action: Extract<PetAction, { type: 'play' | 'bubble' }> }
-  | { type: 'settings'; settings: PetSettings };
+  | { type: 'settings'; settings: PetSettings }
+  | { type: 'pi-integration'; status: PiIntegrationStatus };
 
 export interface RoamRequest {
   facing: Facing;

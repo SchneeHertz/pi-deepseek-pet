@@ -181,6 +181,31 @@ describe('PiPetTransport', () => {
     }
   });
 
+  it('releases its source and requests managed desktop shutdown on Pi quit', async () => {
+    const calls: Array<{ url: string; method?: string; body?: string }> = [];
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method, body: init?.body as string | undefined });
+      return new Response('{}', { status: 202 });
+    });
+    const transport = new PiPetTransport({
+      sourceId: 'source-a',
+      fetch: fetchMock as typeof fetch,
+      readBridge: async () => bridge,
+    });
+    transport.start();
+    transport.publishState(state(1));
+    await vi.advanceTimersByTimeAsync(0);
+    await transport.stop({ quitDesktopIfIdle: true });
+
+    const release = calls.find(({ url }) => url.endsWith('/api/v1/pet/actions'));
+    expect(release?.method).toBe('POST');
+    expect(JSON.parse(release?.body ?? '{}')).toEqual({
+      type: 'release-source',
+      sourceId: 'source-a',
+      quitIfIdle: true,
+    });
+  });
+
   it('resends the complete current snapshot when the desktop instance changes', async () => {
     let currentBridge = bridge;
     const calls: string[] = [];

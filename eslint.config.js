@@ -4,7 +4,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', 'assets/**', 'media/**', 'temp/**', 'tests/e2e/test-results/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      'apps/desktop/release/**',
+      'assets/**',
+      'media/**',
+      'temp/**',
+      'tests/e2e/test-results/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

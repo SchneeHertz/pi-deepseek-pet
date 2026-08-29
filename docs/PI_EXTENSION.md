@@ -34,19 +34,21 @@ pi remove npm:pi-deepseek-pet-extension
 
 项目本地安装遵循 Pi project trust；全局安装对所有项目生效。移除扩展不影响桌宠离线运行，关闭或卸载桌宠也不影响 Pi。
 
+Desktop 设置页中的“随 Pi 启动和退出”会自动把安装包内置的扩展路径加入 `~/.pi/agent/settings.json`。若已配置 `pi-deepseek-pet-extension` Pi Package，则复用该 Package，避免重复加载。保存后重启 Pi，或在已运行的 Pi 中执行 `/reload`。
+
 ## 生命周期
 
 - Factory：只注册事件和命令，不启动 timer、watcher 或 socket。
-- `session_start`：生成随机 sourceId，创建 transport，启动 10 秒心跳并发送 idle 快照。
+- `session_start`：若启用了 Desktop 的 Pi 托管设置，先通过本机生命周期描述文件检查并按需启动 Desktop；随后生成随机 sourceId，创建 transport，启动 10 秒心跳并发送 idle 快照。
 - `agent_start`：thinking。
 - thinking/text stream：只在 phase 变化时发送，不发送 delta。
 - tool start/end：以 toolCallId Map 支持并行工具；ask 类工具进入 waiting。
 - compaction：compacting，成功后按 agent 是否活跃恢复，失败发安全事件并恢复旧 phase。
 - `agent_end`：只记录 stopReason。
 - `agent_settled`：发送 completed/failed/cancelled/truncated/attention，再回 idle。
-- `session_shutdown`：停止 timer、取消请求，并在短超时内尽力 DELETE source。
+- `session_shutdown`：停止 timer、取消请求；普通 reload/session 切换只 DELETE source，`reason: "quit"` 还会请求由 Pi 启动的 Desktop 在没有其他 source 时退出。
 
-这保证自动 retry、overflow compaction、steering 和 follow-up 不会提前显示“完成”。
+这保证自动 retry、overflow compaction、steering 和 follow-up 不会提前显示“完成”。多个 Pi 进程共用同一个 Desktop 时，退出其中一个不会关闭其他会话仍在使用的桌宠；异常终止的 source 超时移除后，托管 Desktop 也会自行退出。
 
 ## 可靠性
 
@@ -78,7 +80,8 @@ pi remove npm:pi-deepseek-pet-extension
 ## 环境变量
 
 - `PI_DEEPSEEK_PET_BRIDGE_FILE`：覆盖 bridge 路径。
-- `PI_DEEPSEEK_PET_DISABLED=1`：本进程默认禁用。
+- `PI_DEEPSEEK_PET_LIFECYCLE_FILE`：覆盖 Pi 托管启动描述文件路径。
+- `PI_DEEPSEEK_PET_DISABLED=1`：本进程默认禁用（同时不自动启动 Desktop）。
 - `PI_DEEPSEEK_PET_DEBUG=1`：开启限频脱敏诊断。
 
 ## 隐私

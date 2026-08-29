@@ -1,22 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { PiDesktopLifecycle } from './desktop-lifecycle.js';
 import { PiStatusMapper, createSafeSource, type PiStopReason } from './status-mapper.js';
 import { PiPetTransport } from './transport.js';
 
 export default function piPetExtension(pi: ExtensionAPI): void {
   let transport: PiPetTransport | undefined;
   let mapper: PiStatusMapper | undefined;
+  const desktopLifecycle = new PiDesktopLifecycle({
+    bridgeFile: process.env.PI_DEEPSEEK_PET_BRIDGE_FILE,
+    lifecycleFile: process.env.PI_DEEPSEEK_PET_LIFECYCLE_FILE,
+    debug: process.env.PI_DEEPSEEK_PET_DEBUG === '1',
+  });
 
   const notify = (ctx: ExtensionContext, message: string, level: 'info' | 'warning' | 'error' = 'info'): void => {
     if (ctx.hasUI) ctx.ui.notify(message, level);
   };
 
-  pi.on('session_start', (_event, ctx) => {
+  pi.on('session_start', async (_event, ctx) => {
     const previousTransport = transport;
     transport = undefined;
     mapper = undefined;
-    void previousTransport?.stop();
+    await previousTransport?.stop();
+    await desktopLifecycle.ensureStarted();
 
     const sourceId = randomUUID();
     transport = new PiPetTransport({
@@ -53,11 +60,12 @@ export default function piPetExtension(pi: ExtensionAPI): void {
   });
   pi.on('agent_settled', () => mapper?.agentSettled());
 
-  pi.on('session_shutdown', async () => {
+  pi.on('session_shutdown', async (event) => {
     const current = transport;
     transport = undefined;
     mapper = undefined;
-    await current?.stop();
+    const quitDesktopIfIdle = event.reason === 'quit' && (await desktopLifecycle.isEnabled());
+    await current?.stop({ quitDesktopIfIdle });
   });
 
   pi.registerCommand('pet-status', {
@@ -102,6 +110,7 @@ export default function piPetExtension(pi: ExtensionAPI): void {
   pi.registerCommand('pet-enable', {
     description: '启用本 Pi 进程的 Pi DeepSeek Pet 状态上报',
     handler: async (_args, ctx) => {
+      await desktopLifecycle.ensureStarted();
       transport?.enable();
       mapper?.resend();
       notify(ctx, 'Pi DeepSeek Pet 状态上报已启用');

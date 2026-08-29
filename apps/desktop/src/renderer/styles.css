@@ -130,6 +130,11 @@ body {
   font-size: 24px;
 }
 
+.settings-page h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+}
+
 .settings-page p,
 .settings-page footer {
   margin: 0;
@@ -155,6 +160,39 @@ body {
 .toggle-list {
   display: grid;
   gap: 13px;
+}
+
+.pi-integration-section .setting-help {
+  margin-top: 12px;
+  line-height: 1.55;
+}
+
+.pi-integration-section code {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #ebe8f8;
+  color: #51498a;
+  user-select: text;
+}
+
+.pi-integration-section .integration-status {
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+.integration-status.success {
+  color: #397553;
+}
+
+.integration-status.error,
+.save-error {
+  color: #a33e4a;
+}
+
+.save-error {
+  margin: 0 0 10px;
+  text-align: right;
 }
 
 .toggle-row {

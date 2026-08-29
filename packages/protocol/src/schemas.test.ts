@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   BridgeDescriptorSchema,
   BubbleActionSchema,
+  PetActionSchema,
   PetSettingsPatchSchema,
+  PiLifecycleDescriptorSchema,
   SourceStateSchema,
   TransientEventSchema,
 } from './schemas.js';
@@ -34,7 +36,28 @@ describe('protocol v1 schemas', () => {
   it('requires non-empty strict settings patches', () => {
     expect(PetSettingsPatchSchema.safeParse({}).success).toBe(false);
     expect(PetSettingsPatchSchema.safeParse({ size: 462 }).success).toBe(true);
+    expect(PetSettingsPatchSchema.safeParse({ manageWithPi: true }).success).toBe(true);
     expect(PetSettingsPatchSchema.safeParse({ size: 462, arbitrary: true }).success).toBe(false);
+  });
+
+  it('accepts only strict managed lifecycle actions and descriptors', () => {
+    expect(PetActionSchema.safeParse({ type: 'release-source', sourceId: 'source-a', quitIfIdle: true }).success).toBe(
+      true,
+    );
+    expect(PetActionSchema.safeParse({ type: 'release-source', sourceId: '../source', quitIfIdle: true }).success).toBe(
+      false,
+    );
+    expect(
+      PiLifecycleDescriptorSchema.safeParse({
+        schemaVersion: 1,
+        managedBy: 'pi-deepseek-pet-desktop',
+        enabled: true,
+        command: 'C:/Program Files/Pi DeepSeek Pet/Pi DeepSeek Pet.exe',
+        args: [],
+        extensionPath: 'C:/Program Files/Pi DeepSeek Pet/resources/pi-extension/index.js',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }).success,
+    ).toBe(true);
   });
 
   it('only accepts loopback bridge descriptors', () => {

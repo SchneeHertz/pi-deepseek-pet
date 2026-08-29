@@ -129,6 +129,13 @@ export const PinSourceActionSchema = z
     sourceId: SourceIdSchema.nullable(),
   })
   .strict();
+export const ReleaseSourceActionSchema = z
+  .object({
+    type: z.literal('release-source'),
+    sourceId: SourceIdSchema,
+    quitIfIdle: z.boolean(),
+  })
+  .strict();
 
 export const PetActionSchema = z.discriminatedUnion('type', [
   PlayActionSchema,
@@ -136,6 +143,7 @@ export const PetActionSchema = z.discriminatedUnion('type', [
   VisibilityActionSchema,
   ResetPositionActionSchema,
   PinSourceActionSchema,
+  ReleaseSourceActionSchema,
 ]);
 
 export const SavedPositionSchema = z
@@ -153,6 +161,7 @@ export const PetSettingsSchema = z
     ambientActions: z.boolean(),
     bubblesEnabled: z.boolean(),
     launchAtLogin: z.boolean(),
+    manageWithPi: z.boolean(),
     pinnedSourceId: SourceIdSchema.nullable(),
     position: SavedPositionSchema.nullable(),
   })
@@ -161,6 +170,18 @@ export const PetSettingsSchema = z
 export const PetSettingsPatchSchema = PetSettingsSchema.partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'at least one setting is required');
+
+export const PiLifecycleDescriptorSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    managedBy: z.literal('pi-deepseek-pet-desktop'),
+    enabled: z.literal(true),
+    command: safeText(4_096),
+    args: z.array(z.string().max(4_096).refine(noControlCharacters, 'control characters are not allowed')).max(8),
+    extensionPath: safeText(4_096),
+    updatedAt: IsoDateSchema,
+  })
+  .strict();
 
 export const BridgeDescriptorSchema = z
   .object({
@@ -213,6 +234,7 @@ export type PetAction = z.infer<typeof PetActionSchema>;
 export type PetSettings = z.infer<typeof PetSettingsSchema>;
 export type PetSettingsPatch = z.infer<typeof PetSettingsPatchSchema>;
 export type SavedPosition = z.infer<typeof SavedPositionSchema>;
+export type PiLifecycleDescriptor = z.infer<typeof PiLifecycleDescriptorSchema>;
 export type BridgeDescriptor = z.infer<typeof BridgeDescriptorSchema>;
 export type ApiErrorBody = z.infer<typeof ApiErrorSchema>;
 export type AnimationCatalog = z.infer<typeof AnimationCatalogSchema>;

@@ -1,24 +1,36 @@
 import { useEffect, useState } from 'react';
 import type { PetSettings } from '@pi-deepseek-pet/protocol';
+import type { PiIntegrationStatus } from '../shared.js';
 
 export function SettingsView(): React.JSX.Element {
   const [settings, setSettings] = useState<PetSettings>();
+  const [piIntegration, setPiIntegration] = useState<PiIntegrationStatus>();
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
 
   useEffect(() => {
-    void window.piPet.getBootstrap().then((bootstrap) => setSettings(bootstrap.settings));
+    void window.piPet.getBootstrap().then((bootstrap) => {
+      setSettings(bootstrap.settings);
+      setPiIntegration(bootstrap.piIntegration);
+    });
     return window.piPet.subscribe((event) => {
       if (event.type === 'settings') setSettings(event.settings);
+      if (event.type === 'pi-integration') setPiIntegration(event.status);
     });
   }, []);
 
   if (!settings) return <main className="settings-page">正在加载…</main>;
 
   const save = async (): Promise<void> => {
-    const next = await window.piPet.updateSettings(settings);
-    setSettings(next);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1_500);
+    setSaveError(undefined);
+    try {
+      const next = await window.piPet.updateSettings(settings);
+      setSettings(next);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1_500);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   return (
@@ -44,6 +56,33 @@ export function SettingsView(): React.JSX.Element {
         />
       </section>
 
+      <section className="pi-integration-section">
+        <h2>Pi 集成</h2>
+        <Toggle
+          label="随 Pi 启动和退出"
+          checked={settings.manageWithPi}
+          onChange={(manageWithPi) =>
+            setSettings({
+              ...settings,
+              manageWithPi,
+              launchAtLogin: manageWithPi ? false : settings.launchAtLogin,
+            })
+          }
+        />
+        <p className="setting-help">
+          保存后，Pi 会自动加载随桌宠附带的扩展、启动桌宠，并在最后一个 Pi 退出时关闭桌宠。已运行的 Pi 可执行
+          <code>/reload</code>，否则下次启动生效。
+        </p>
+        {piIntegration?.state === 'enabled' && (
+          <p className="integration-status success">
+            已配置（{piIntegration.extensionSource === 'package' ? '现有 Pi Package' : '内置扩展'}）
+          </p>
+        )}
+        {piIntegration?.state === 'error' && (
+          <p className="integration-status error">配置失败：{piIntegration.message}</p>
+        )}
+      </section>
+
       <section className="toggle-list">
         <Toggle
           label="始终置顶"
@@ -63,10 +102,17 @@ export function SettingsView(): React.JSX.Element {
         <Toggle
           label="登录后自动启动"
           checked={settings.launchAtLogin}
-          onChange={(launchAtLogin) => setSettings({ ...settings, launchAtLogin })}
+          onChange={(launchAtLogin) =>
+            setSettings({
+              ...settings,
+              launchAtLogin,
+              manageWithPi: launchAtLogin ? false : settings.manageWithPi,
+            })
+          }
         />
       </section>
 
+      {saveError && <p className="save-error">保存失败：{saveError}</p>}
       <div className="settings-actions">
         <button type="button" className="secondary" onClick={() => setSettings({ ...settings, position: null })}>
           恢复默认位置

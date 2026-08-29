@@ -2,7 +2,7 @@
 
 Pi DeepSeek Pet is a standalone Windows desktop pet that visualizes [Pi](https://pi.dev) lifecycle status through a secure loopback HTTP bridge.
 
-It includes a transparent Electron window, 97 VP9-alpha WebM animations, click/drag/roaming interactions, a host-independent animation controller, a versioned `/api/v1`, and a non-blocking Pi extension.
+It includes a transparent Electron window, 97 VP9-alpha WebM animations, click/drag/roaming interactions, a host-independent animation controller, a versioned `/api/v1`, and a non-blocking Pi extension. Its settings can also register the bundled extension so the pet starts with Pi and closes after the last Pi process exits.
 
 ## Quick start
 
@@ -20,7 +20,9 @@ In another terminal:
 pi -e ./packages/pi-extension/src/index.ts
 ```
 
-Build the Windows installer with `pnpm package:win` and the self-contained Pi package with `pnpm package:extension`. Install the extension with `pi install npm:pi-deepseek-pet-extension`, update it with `pi update npm:pi-deepseek-pet-extension`, and remove it with `pi remove npm:pi-deepseek-pet-extension`. Run a newer Windows installer to upgrade Pi DeepSeek Pet; uninstall it from Windows Installed apps (user settings under `~/.pi-deepseek-pet/` are retained).
+Build the Windows installer with `pnpm package:win` and the self-contained Pi package with `pnpm package:extension`. In the desktop settings, enable **Start and stop with Pi** to register the bundled extension globally: the next Pi launch starts the pet and the pet closes after the last Pi process exits (`/reload` applies it to an already-running Pi). This mode is mutually exclusive with launch at login.
+
+Alternatively, install the extension manually with `pi install npm:pi-deepseek-pet-extension`, update it with `pi update npm:pi-deepseek-pet-extension`, and remove it with `pi remove npm:pi-deepseek-pet-extension`. Run a newer Windows installer to upgrade Pi DeepSeek Pet; uninstall it from Windows Installed apps (user settings under `~/.pi-deepseek-pet/` are retained).
 
 See [DEVELOPMENT.md](docs/DEVELOPMENT.md), [HTTP_API.md](docs/HTTP_API.md), and [PI_EXTENSION.md](docs/PI_EXTENSION.md).
 

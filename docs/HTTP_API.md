@@ -47,17 +47,17 @@ PUT/POST/PATCH body 还必须使用 `Content-Type: application/json`。请求体
 
 ## 路由
 
-| 方法   | 路径                                  | 说明                                    |
-| ------ | ------------------------------------- | --------------------------------------- |
-| GET    | `/api/v1/health`                      | 无秘密的版本与实例健康信息              |
-| GET    | `/api/v1/state`                       | 当前展示、source 诊断和设置             |
-| GET    | `/api/v1/animations`                  | 实际可用动画与状态池                    |
-| PUT    | `/api/v1/sources/:sourceId/state`     | 持续状态快照                            |
-| POST   | `/api/v1/sources/:sourceId/heartbeat` | 延长 TTL                                |
-| POST   | `/api/v1/sources/:sourceId/events`    | 瞬时事件                                |
-| DELETE | `/api/v1/sources/:sourceId`           | 正常下线                                |
-| POST   | `/api/v1/pet/actions`                 | 手动动作、气泡、显隐、位置和固定 source |
-| PATCH  | `/api/v1/pet/settings`                | 修改允许的持久化设置                    |
+| 方法   | 路径                                  | 说明                                         |
+| ------ | ------------------------------------- | -------------------------------------------- |
+| GET    | `/api/v1/health`                      | 无秘密的版本与实例健康信息                   |
+| GET    | `/api/v1/state`                       | 当前展示、source 诊断和设置                  |
+| GET    | `/api/v1/animations`                  | 实际可用动画与状态池                         |
+| PUT    | `/api/v1/sources/:sourceId/state`     | 持续状态快照                                 |
+| POST   | `/api/v1/sources/:sourceId/heartbeat` | 延长 TTL                                     |
+| POST   | `/api/v1/sources/:sourceId/events`    | 瞬时事件                                     |
+| DELETE | `/api/v1/sources/:sourceId`           | 正常下线                                     |
+| POST   | `/api/v1/pet/actions`                 | 手动动作、气泡、显隐、位置、固定/释放 source |
+| PATCH  | `/api/v1/pet/settings`                | 修改允许的持久化设置                         |
 
 `sourceId` 为 1–64 位字母、数字、下划线或连字符，不能使用会话路径。
 
@@ -122,9 +122,10 @@ Phase：`idle | thinking | responding | tool | waiting | compacting`。同一状
 { "type": "set-visibility", "visible": true }
 { "type": "reset-position" }
 { "type": "pin-source", "sourceId": null }
+{ "type": "release-source", "sourceId": "source-a", "quitIfIdle": true }
 ```
 
-动画必须来自 `/animations`。气泡最长 240 字符，时长 500–30000ms。
+动画必须来自 `/animations`。气泡最长 240 字符，时长 500–30000ms。`release-source` 供扩展在退出时原子释放自己的 source；只有 Desktop 本身由 Pi 托管启动、且没有其他 source 时，`quitIfIdle` 才会关闭应用。
 
 ## 设置
 
@@ -137,12 +138,13 @@ Phase：`idle | thinking | responding | tool | waiting | compacting`。同一状
   "ambientActions": true,
   "bubblesEnabled": true,
   "launchAtLogin": false,
+  "manageWithPi": true,
   "pinnedSourceId": null,
   "position": null
 }
 ```
 
-`position` 也可为 `{ "displayId": "...", "xRatio": 0.8, "yRatio": 0.2 }`。
+`position` 也可为 `{ "displayId": "...", "xRatio": 0.8, "yRatio": 0.2 }`。`manageWithPi` 会配置 Pi 全局扩展并启用随 Pi 启停；它与 `launchAtLogin` 互斥。
 
 ## PowerShell 示例
 

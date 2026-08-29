@@ -112,6 +112,18 @@ describe('loopback HTTP API', () => {
     expect(handleAction).not.toHaveBeenCalled();
   });
 
+  it('accepts the authenticated source release lifecycle action', async () => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/pet/actions`,
+      authenticated({
+        method: 'POST',
+        body: JSON.stringify({ type: 'release-source', sourceId: 'source-a', quitIfIdle: true }),
+      }),
+    );
+    expect(response.status).toBe(202);
+    expect(handleAction).toHaveBeenCalledWith({ type: 'release-source', sourceId: 'source-a', quitIfIdle: true });
+  });
+
   it('updates only allowed settings', async () => {
     const response = await fetch(
       `${baseUrl}/api/v1/pet/settings`,

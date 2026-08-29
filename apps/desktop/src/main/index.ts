@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import {
   app,
   BrowserWindow,
@@ -23,11 +24,12 @@ import {
   type PetSettingsPatch,
 } from '@pi-deepseek-pet/protocol';
 import { z } from 'zod';
-import type { RendererBootstrap, RendererEvent, RoamRequest } from '../shared.js';
+import type { PiIntegrationStatus, RendererBootstrap, RendererEvent, RoamRequest } from '../shared.js';
 import { loadAnimationResources, registerAnimationScheme } from './animation-resources.js';
 import { PetApiServer } from './api-server.js';
 import { createBridgeDescriptor, removeOwnedBridgeFile, writeBridgeFile } from './bridge-file.js';
 import { resolveAppPaths } from './paths.js';
+import { PiIntegrationManager } from './pi-integration.js';
 import { SettingsStore } from './settings-store.js';
 import { SourceRegistry } from './source-registry.js';
 import { PetWindowManager, rendererPathsFromMain } from './window-manager.js';
@@ -39,18 +41,33 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+if (process.env.PI_DEEPSEEK_PET_ELECTRON_USER_DATA_DIR) {
+  app.setPath('userData', resolve(process.env.PI_DEEPSEEK_PET_ELECTRON_USER_DATA_DIR));
+}
+
+const launchedByPi = process.argv.includes('--pi-managed');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.exit(0);
+
+const MANAGED_STARTUP_GRACE_MS = 30_000;
+const MANAGED_ORPHAN_GRACE_MS = 15_000;
+const MANAGED_QUIT_DELAY_MS = 1_000;
 
 let tray: Tray | undefined;
 let settingsWindow: BrowserWindow | undefined;
 let windowManager: PetWindowManager | undefined;
 let settingsStore: SettingsStore | undefined;
+let piIntegrationManager: PiIntegrationManager | undefined;
+let piIntegrationStatus: PiIntegrationStatus = { state: 'disabled' };
 let registry: SourceRegistry | undefined;
 let apiServer: PetApiServer | undefined;
 let bridgeDescriptor: ReturnType<typeof createBridgeDescriptor> | undefined;
 let bridgeFile = '';
 let sweepTimer: ReturnType<typeof setInterval> | undefined;
+let managedStartupTimer: ReturnType<typeof setTimeout> | undefined;
+let managedQuitTimer: ReturnType<typeof setTimeout> | undefined;
+let managedSourceSeen = false;
+let managedEmptySince: number | undefined;
 let bootstrapData: RendererBootstrap | undefined;
 let cleanupStarted = false;
 let cleanupComplete = false;
@@ -88,8 +105,19 @@ async function startApplication(): Promise<void> {
   const paths = resolveAppPaths(app);
   bridgeFile = paths.bridgeFile;
   settingsStore = new SettingsStore(paths.settingsFile);
-  const settings = await settingsStore.load();
+  let settings = await settingsStore.load();
+  if (settings.manageWithPi && settings.launchAtLogin) {
+    settings = await settingsStore.update({ launchAtLogin: false });
+  }
   app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin });
+  piIntegrationManager = new PiIntegrationManager({
+    piSettingsFile: paths.piSettingsFile,
+    lifecycleFile: paths.lifecycleFile,
+    extensionFile: paths.bundledExtensionFile,
+    desktopCommand: process.execPath,
+    desktopArgs: app.isPackaged ? [] : [app.getAppPath()],
+  });
+  piIntegrationStatus = await piIntegrationManager.sync(settings.manageWithPi);
 
   const resources = await loadAnimationResources(paths.manifestFile, paths.animationDirectory);
   registerAnimationScheme(protocol, resources.animationFiles);
@@ -104,6 +132,7 @@ async function startApplication(): Promise<void> {
   registry = new SourceRegistry({
     settings,
     onPresentation: (presentation) => {
+      if (presentation.onlineSourceCount > 0) noteManagedSourceSeen();
       if (bootstrapData) bootstrapData.presentation = presentation;
       sendRendererEvent({ type: 'presentation', presentation });
     },
@@ -125,6 +154,7 @@ async function startApplication(): Promise<void> {
     manifest: resources.manifest,
     availableAnimations: resources.availableAnimations,
     settings,
+    piIntegration: piIntegrationStatus,
     presentation: registry.presentation,
     assetBaseUrl: 'pet-asset://animation/',
   };
@@ -150,7 +180,11 @@ async function startApplication(): Promise<void> {
   bridgeDescriptor = BridgeDescriptorSchema.parse({ ...seed, baseUrl });
   await writeBridgeFile(paths.bridgeFile, bridgeDescriptor);
 
-  sweepTimer = setInterval(() => registry?.sweep(), 5_000);
+  sweepTimer = setInterval(() => {
+    registry?.sweep();
+    checkManagedOrphan();
+  }, 5_000);
+  startManagedStartupTimer();
   screen.on('display-added', ensureWindowVisible);
   screen.on('display-removed', ensureWindowVisible);
   screen.on('display-metrics-changed', ensureWindowVisible);
@@ -225,7 +259,7 @@ function registerIpcHandlers(
     }
     settingsWindow = new BrowserWindow({
       width: 440,
-      height: 620,
+      height: 720,
       minWidth: 400,
       minHeight: 500,
       title: 'Pi DeepSeek Pet 设置',
@@ -257,16 +291,36 @@ async function updateSettings(
   sendRendererEvent: (event: RendererEvent) => void,
 ): Promise<PetSettings> {
   if (!settingsStore) throw new Error('Settings store is unavailable');
-  const settings = await settingsStore.update(patch);
-  if ('pinnedSourceId' in patch) registry?.setPinnedSource(settings.pinnedSourceId);
-  if ('launchAtLogin' in patch) app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin });
+  const normalizedPatch = normalizeStartupSettings(patch);
+  const settings = await settingsStore.update(normalizedPatch);
+  if ('pinnedSourceId' in normalizedPatch) registry?.setPinnedSource(settings.pinnedSourceId);
+  if ('launchAtLogin' in normalizedPatch || 'manageWithPi' in normalizedPatch) {
+    app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin });
+  }
+  if ('manageWithPi' in normalizedPatch) {
+    piIntegrationStatus = (await piIntegrationManager?.sync(settings.manageWithPi)) ?? {
+      state: 'error',
+      message: 'Pi 集成管理器尚未初始化',
+    };
+    if (bootstrapData) bootstrapData.piIntegration = piIntegrationStatus;
+    sendRendererEvent({ type: 'pi-integration', status: piIntegrationStatus });
+  }
   await windowManager?.applySettings(settings);
-  if ('position' in patch) windowManager?.applySavedPosition(settings);
-  else if ('size' in patch) await windowManager?.persistPosition();
+  if ('position' in normalizedPatch) windowManager?.applySavedPosition(settings);
+  else if ('size' in normalizedPatch) await windowManager?.persistPosition();
   if (bootstrapData) bootstrapData.settings = settings;
   sendRendererEvent({ type: 'settings', settings });
   refreshTrayMenu();
   return settings;
+}
+
+function normalizeStartupSettings(patch: PetSettingsPatch): PetSettingsPatch {
+  if (patch.manageWithPi === true && patch.launchAtLogin === true) {
+    throw new Error('“随 Pi 启停”和“登录后自动启动”不能同时启用');
+  }
+  if (patch.manageWithPi === true) return { ...patch, launchAtLogin: false };
+  if (patch.launchAtLogin === true) return { ...patch, manageWithPi: false };
+  return patch;
 }
 
 async function handleApiAction(action: PetAction, sendRendererEvent: (event: RendererEvent) => void): Promise<void> {
@@ -284,6 +338,10 @@ async function handleApiAction(action: PetAction, sendRendererEvent: (event: Ren
       break;
     case 'pin-source':
       await updateSettings({ pinnedSourceId: action.sourceId }, sendRendererEvent);
+      break;
+    case 'release-source':
+      registry?.delete(action.sourceId);
+      if (action.quitIfIdle) scheduleManagedQuitIfIdle();
       break;
   }
 }
@@ -351,6 +409,48 @@ async function updateSettingsFromMenu(patch: PetSettingsPatch): Promise<void> {
   });
 }
 
+function managedLifecycleActive(): boolean {
+  return launchedByPi && settingsStore?.value.manageWithPi === true;
+}
+
+function noteManagedSourceSeen(): void {
+  if (!managedLifecycleActive()) return;
+  managedSourceSeen = true;
+  managedEmptySince = undefined;
+  if (managedStartupTimer) clearTimeout(managedStartupTimer);
+  if (managedQuitTimer) clearTimeout(managedQuitTimer);
+  managedStartupTimer = undefined;
+  managedQuitTimer = undefined;
+}
+
+function startManagedStartupTimer(): void {
+  if (!managedLifecycleActive()) return;
+  managedStartupTimer = setTimeout(() => {
+    managedStartupTimer = undefined;
+    if (managedLifecycleActive() && (registry?.diagnostics().sources.length ?? 0) === 0) app.quit();
+  }, MANAGED_STARTUP_GRACE_MS);
+}
+
+function checkManagedOrphan(): void {
+  if (!managedLifecycleActive() || !managedSourceSeen) return;
+  if ((registry?.diagnostics().sources.length ?? 0) > 0) {
+    managedEmptySince = undefined;
+    return;
+  }
+  const now = Date.now();
+  managedEmptySince ??= now;
+  if (now - managedEmptySince >= MANAGED_ORPHAN_GRACE_MS) app.quit();
+}
+
+function scheduleManagedQuitIfIdle(): void {
+  if (!managedLifecycleActive()) return;
+  if (managedQuitTimer) clearTimeout(managedQuitTimer);
+  managedQuitTimer = setTimeout(() => {
+    managedQuitTimer = undefined;
+    if (managedLifecycleActive() && (registry?.diagnostics().sources.length ?? 0) === 0) app.quit();
+  }, MANAGED_QUIT_DELAY_MS);
+}
+
 function ensureWindowVisible(): void {
   windowManager?.ensureVisible();
 }
@@ -381,7 +481,11 @@ app.on('before-quit', (event) => {
 
 async function cleanup(): Promise<void> {
   if (sweepTimer) clearInterval(sweepTimer);
+  if (managedStartupTimer) clearTimeout(managedStartupTimer);
+  if (managedQuitTimer) clearTimeout(managedQuitTimer);
   sweepTimer = undefined;
+  managedStartupTimer = undefined;
+  managedQuitTimer = undefined;
   screen.removeListener('display-added', ensureWindowVisible);
   screen.removeListener('display-removed', ensureWindowVisible);
   screen.removeListener('display-metrics-changed', ensureWindowVisible);

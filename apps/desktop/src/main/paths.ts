@@ -6,6 +6,9 @@ export interface AppPaths {
   dataDirectory: string;
   settingsFile: string;
   bridgeFile: string;
+  lifecycleFile: string;
+  piSettingsFile: string;
+  bundledExtensionFile: string;
   assetsDirectory: string;
   animationDirectory: string;
   manifestFile: string;
@@ -24,12 +27,22 @@ export function resolveAppPaths(app: App): AppPaths {
   const resourcesDirectory = app.isPackaged
     ? join(process.resourcesPath, 'resources')
     : resolve(app.getAppPath(), 'resources');
+  const piAgentDirectory = process.env.PI_CODING_AGENT_DIR
+    ? resolve(process.env.PI_CODING_AGENT_DIR)
+    : join(homedir(), '.pi', 'agent');
   return {
     dataDirectory,
     settingsFile: join(dataDirectory, 'config.json'),
     bridgeFile: process.env.PI_DEEPSEEK_PET_BRIDGE_FILE
       ? resolve(process.env.PI_DEEPSEEK_PET_BRIDGE_FILE)
       : join(dataDirectory, 'bridge-v1.json'),
+    lifecycleFile: process.env.PI_DEEPSEEK_PET_LIFECYCLE_FILE
+      ? resolve(process.env.PI_DEEPSEEK_PET_LIFECYCLE_FILE)
+      : join(dataDirectory, 'pi-lifecycle-v1.json'),
+    piSettingsFile: join(piAgentDirectory, 'settings.json'),
+    bundledExtensionFile: app.isPackaged
+      ? join(process.resourcesPath, 'pi-extension', 'index.js')
+      : resolve(app.getAppPath(), '../../packages/pi-extension/dist/index.js'),
     assetsDirectory,
     animationDirectory: join(assetsDirectory, 'animations', 'webm'),
     manifestFile: join(assetsDirectory, 'animation-manifest.jsonc'),

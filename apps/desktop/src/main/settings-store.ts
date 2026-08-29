@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: PetSettings = {
   ambientActions: true,
   bubblesEnabled: true,
   launchAtLogin: false,
+  manageWithPi: false,
   pinnedSourceId: null,
   position: null,
 };
@@ -34,7 +35,8 @@ export class SettingsStore {
   async load(): Promise<PetSettings> {
     try {
       const value = JSON.parse(await readFile(this.#filePath, 'utf8')) as unknown;
-      this.#settings = PetSettingsSchema.parse(value);
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('settings must be an object');
+      this.#settings = PetSettingsSchema.parse({ ...DEFAULT_SETTINGS, ...value });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== 'ENOENT')

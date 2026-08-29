@@ -2,7 +2,7 @@
 
 Pi Package that forwards safe Pi lifecycle phases to the local Pi DeepSeek Pet desktop app. It registers no LLM tools and is non-blocking when the desktop app is unavailable. The published `dist/index.js` bundles its protocol runtime, so no workspace package is required after installation.
 
-The companion Windows app displays the pet. [Download the latest Pi DeepSeek Pet desktop installer from GitHub Releases](https://github.com/SchneeHertz/pi-deepseek-pet/releases/latest), install it, and start it before using the extension.
+The companion Windows app displays the pet. [Download the latest Pi DeepSeek Pet desktop installer from GitHub Releases](https://github.com/SchneeHertz/pi-deepseek-pet/releases/latest) and install it. You can start it manually, or enable **Start and stop with Pi** in the desktop settings so this extension starts it on Pi startup and closes the Pi-managed desktop after the last Pi process exits.
 
 Install with `pi install npm:pi-deepseek-pet-extension`, update with `pi update npm:pi-deepseek-pet-extension`, and remove with `pi remove npm:pi-deepseek-pet-extension`.
 

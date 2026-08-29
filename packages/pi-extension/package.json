@@ -11,6 +11,7 @@
   "type": "module",
   "files": [
     "src/index.ts",
+    "src/desktop-lifecycle.ts",
     "src/status-mapper.ts",
     "src/transport.ts",
     "dist",

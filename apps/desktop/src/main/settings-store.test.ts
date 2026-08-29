@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -24,6 +24,18 @@ describe('SettingsStore', () => {
     expect(await store.load()).toEqual(DEFAULT_SETTINGS);
     expect(await store.update({ size: 320, alwaysOnTop: false })).toMatchObject({ size: 320, alwaysOnTop: false });
     expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ size: 320, alwaysOnTop: false });
+  });
+
+  it('migrates settings written before Pi lifecycle management existed', async () => {
+    const directory = testDirectory();
+    await mkdir(directory, { recursive: true });
+    const file = resolve(directory, 'config.json');
+    const legacy = { ...DEFAULT_SETTINGS } as Partial<typeof DEFAULT_SETTINGS>;
+    delete legacy.manageWithPi;
+    await writeFile(file, JSON.stringify(legacy), 'utf8');
+
+    const store = new SettingsStore(file);
+    expect(await store.load()).toMatchObject({ manageWithPi: false, size: DEFAULT_SETTINGS.size });
   });
 
   it('rejects unknown settings', async () => {
