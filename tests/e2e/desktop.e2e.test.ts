@@ -122,8 +122,9 @@ test('transparent desktop window loads assets and accepts authenticated API acti
         .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
         ?.getBounds(),
     );
-    expect(roamedBounds?.width).toBe(draggedBounds?.width);
-    expect(roamedBounds?.height).toBe(draggedBounds?.height);
+    // Windows 小数 DPI 换算允许单次 ±1px 量化，但不得随逐帧移动持续累积。
+    expect(Math.abs(roamedBounds!.width - draggedBounds!.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(roamedBounds!.height - draggedBounds!.height)).toBeLessThanOrEqual(1);
 
     // 回归：尺寸调整必须双向生效（resizable:false 下 setSize 曾被 Windows 最小尺寸钤制拒绝）
     await page.evaluate(() => window.piPet.updateSettings({ size: 320 }));

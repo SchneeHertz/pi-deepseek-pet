@@ -262,7 +262,7 @@ function registerIpcHandlers(
     }
     const window = new BrowserWindow({
       width: 440,
-      height: 880,
+      height: 900,
       minWidth: 400,
       minHeight: 500,
       show: false,

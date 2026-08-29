@@ -105,7 +105,7 @@ body {
 }
 
 .settings-page {
-  min-height: 100%;
+  height: 100%;
   padding: 28px;
   overflow: auto;
   background: linear-gradient(145deg, #f7f6ff, #eef4ff);
