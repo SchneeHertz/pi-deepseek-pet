@@ -29,6 +29,17 @@ async function prepareFiles(fixture: ReturnType<typeof createFixture>): Promise<
   await writeFile(fixture.desktopCommand, '', 'utf8');
 }
 
+async function writeDevPackage(fixture: ReturnType<typeof createFixture>): Promise<string> {
+  const packageDir = resolve(fixture.directory, 'dev-package');
+  await mkdir(packageDir, { recursive: true });
+  await writeFile(
+    resolve(packageDir, 'package.json'),
+    JSON.stringify({ name: 'pi-deepseek-pet-extension', version: '0.0.0-dev' }),
+    'utf8',
+  );
+  return packageDir;
+}
+
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
@@ -94,5 +105,63 @@ describe('PiIntegrationManager', () => {
     const status = await fixture.manager.sync(true);
     expect(status.state).toBe('error');
     expect(await readFile(fixture.piSettingsFile, 'utf8')).toBe('{ invalid json');
+  });
+
+  it('recognizes an absolute local development package without loading a duplicate bundled extension', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+    const packageDir = await writeDevPackage(fixture);
+    await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
+    await writeFile(fixture.piSettingsFile, JSON.stringify({ packages: [packageDir] }), 'utf8');
+
+    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
+    expect(settings.extensions).toBeUndefined();
+  });
+
+  it('recognizes a relative local development package path', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+    await writeDevPackage(fixture);
+    await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
+    await writeFile(fixture.piSettingsFile, JSON.stringify({ packages: ['../dev-package'] }), 'utf8');
+
+    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
+    expect(settings.extensions).toBeUndefined();
+  });
+
+  it('removes stale bundled extension entries when a local package is installed', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+    await writeDevPackage(fixture);
+    const staleFile = resolve(fixture.directory, 'stale-pet-extension', 'index.js');
+    await mkdir(resolve(staleFile, '..'), { recursive: true });
+    await writeFile(staleFile, '// pi-deepseek-pet stale bundled extension\n', 'utf8');
+    await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
+    await writeFile(
+      fixture.piSettingsFile,
+      JSON.stringify({ packages: [resolve(fixture.directory, 'dev-package')], extensions: [staleFile] }),
+      'utf8',
+    );
+
+    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
+    expect(settings.extensions).toEqual([]);
+  });
+
+  it('falls back to the bundled extension when the local package path does not exist', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+    await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
+    await writeFile(
+      fixture.piSettingsFile,
+      JSON.stringify({ packages: [resolve(fixture.directory, 'missing-extension')] }),
+      'utf8',
+    );
+
+    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'bundled' });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
+    expect(settings.extensions).toContain(fixture.extensionFile.replaceAll('\\', '/'));
   });
 });

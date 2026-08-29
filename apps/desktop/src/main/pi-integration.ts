@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { PiLifecycleDescriptorSchema, type PiLifecycleDescriptor } from '@pi-deepseek-pet/protocol';
 import type { PiIntegrationStatus } from '../shared.js';
@@ -47,14 +47,22 @@ export class PiIntegrationManager {
     if (!isAbsolute(this.#options.desktopCommand)) throw new Error('桌面应用启动路径必须是绝对路径');
 
     const settings = await readPiSettings(this.#options.piSettingsFile);
-    const packageInstalled = hasEnabledPetPackage(settings.value.packages);
+    const packageInstalled = await hasEnabledPetPackage(settings.value.packages, settings.directory);
     const managedPaths = [previousDescriptor?.extensionPath, this.#options.extensionFile].filter(
       (value): value is string => Boolean(value),
     );
     const extensions = readExtensionEntries(settings.value.extensions);
-    const nextExtensions = extensions.filter(
+    let nextExtensions = extensions.filter(
       (entry) => !managedPaths.some((managedPath) => extensionEntryMatches(entry, managedPath, settings.directory)),
     );
+    if (packageInstalled) {
+      const kept: string[] = [];
+      for (const entry of nextExtensions) {
+        if (await isPetExtensionEntry(entry, settings.directory)) continue;
+        kept.push(entry);
+      }
+      nextExtensions = kept;
+    }
     if (!packageInstalled) nextExtensions.push(toPortablePath(this.#options.extensionFile));
     applyExtensions(settings.value, nextExtensions, settings.hadExtensions);
 
@@ -167,28 +175,58 @@ function toPortablePath(value: string): string {
   return resolve(value).replaceAll('\\', '/');
 }
 
-function hasEnabledPetPackage(value: unknown): boolean {
+async function hasEnabledPetPackage(value: unknown, settingsDirectory: string): Promise<boolean> {
   if (!Array.isArray(value)) return false;
-  return value.some((entry) => {
+  for (const entry of value) {
     const source =
       typeof entry === 'string'
         ? entry
         : entry && typeof entry === 'object' && typeof (entry as { source?: unknown }).source === 'string'
           ? (entry as { source: string }).source
           : undefined;
-    if (!source || !isPetPackageSource(source)) return false;
+    if (!source || !(await isPetPackageSource(source, settingsDirectory))) continue;
     if (entry && typeof entry === 'object') {
       const extensions = (entry as { extensions?: unknown }).extensions;
       if (Array.isArray(extensions) && extensions.length === 0) return false;
     }
     return true;
-  });
+  }
+  return false;
 }
 
-function isPetPackageSource(source: string): boolean {
+async function isPetPackageSource(source: string, settingsDirectory: string): Promise<boolean> {
   const normalized = source.trim();
   if (normalized === PET_PACKAGE_NAME || normalized === `npm:${PET_PACKAGE_NAME}`) return true;
-  return normalized.startsWith(`npm:${PET_PACKAGE_NAME}@`);
+  if (normalized.startsWith(`npm:${PET_PACKAGE_NAME}@`)) return true;
+  // 本地路径(开发中的扩展):file: 前缀、相对路径、绝对路径
+  const local = normalized.startsWith('file:') ? normalized.slice('file:'.length) : normalized;
+  if (!local) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(local) && !/^[a-z]:[\\/]/i.test(local)) return false;
+  const absolute = isAbsolute(local) ? resolve(local) : resolve(settingsDirectory, local);
+  return isPetExtensionEntryAt(absolute);
+}
+
+async function isPetExtensionEntry(entry: string, settingsDirectory: string): Promise<boolean> {
+  const candidate = entry.startsWith('+') || entry.startsWith('-') ? entry.slice(1) : entry;
+  if (['*', '?', '[', ']', '{', '}'].some((character) => candidate.includes(character))) return false;
+  const absolute = isAbsolute(candidate) ? resolve(candidate) : resolve(settingsDirectory, candidate);
+  return isPetExtensionEntryAt(absolute);
+}
+
+async function isPetExtensionEntryAt(target: string): Promise<boolean> {
+  try {
+    const info = await stat(target);
+    if (info.isDirectory()) {
+      const manifest = JSON.parse(await readFile(resolve(target, 'package.json'), 'utf8')) as { name?: unknown };
+      return manifest.name === PET_PACKAGE_NAME;
+    }
+    if (info.isFile()) {
+      return (await readFile(target, 'utf8')).includes('pi-deepseek-pet');
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 async function readLifecycleDescriptor(filePath: string): Promise<PiLifecycleDescriptor | undefined> {
