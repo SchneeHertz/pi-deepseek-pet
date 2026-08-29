@@ -59,7 +59,6 @@ export class PiDesktopLifecycle {
             cwd: dirname(descriptor.command),
             detached: true,
             stdio: 'ignore',
-            windowsHide: true,
           });
       child?.once('error', (error) => this.#debugError(`desktop launch failed: ${error.message}`));
       child?.unref();

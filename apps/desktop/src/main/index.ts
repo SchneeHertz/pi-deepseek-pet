@@ -255,14 +255,17 @@ function registerIpcHandlers(
 
   const createSettingsWindow = async (): Promise<void> => {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
+      if (settingsWindow.isMinimized()) settingsWindow.restore();
+      settingsWindow.show();
       settingsWindow.focus();
       return;
     }
-    settingsWindow = new BrowserWindow({
+    const window = new BrowserWindow({
       width: 440,
-      height: 720,
+      height: 880,
       minWidth: 400,
       minHeight: 500,
+      show: false,
       title: 'Pi DeepSeek Pet 设置',
       icon: iconPath,
       backgroundColor: '#f5f6fb',
@@ -274,13 +277,23 @@ function registerIpcHandlers(
         webSecurity: true,
       },
     });
-    settingsWindow.setMenuBarVisibility(false);
-    settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    settingsWindow.webContents.on('will-navigate', (navigationEvent) => navigationEvent.preventDefault());
-    settingsWindow.on('closed', () => (settingsWindow = undefined));
-    if (process.env.VITE_DEV_SERVER_URL)
-      await settingsWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?view=settings`);
-    else await settingsWindow.loadFile(rendererPaths.rendererHtml, { query: { view: 'settings' } });
+    settingsWindow = window;
+    window.setMenuBarVisibility(false);
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    window.webContents.on('will-navigate', (navigationEvent) => navigationEvent.preventDefault());
+    window.on('closed', () => {
+      if (settingsWindow === window) settingsWindow = undefined;
+    });
+    try {
+      if (process.env.VITE_DEV_SERVER_URL) await window.loadURL(`${process.env.VITE_DEV_SERVER_URL}?view=settings`);
+      else await window.loadFile(rendererPaths.rendererHtml, { query: { view: 'settings' } });
+    } catch (error) {
+      if (!window.isDestroyed()) window.destroy();
+      throw error;
+    }
+    if (window.isDestroyed()) return;
+    window.show();
+    window.focus();
   };
   openSettingsWindow = createSettingsWindow;
 }
@@ -395,7 +408,13 @@ function buildContextMenu(): Menu {
     },
     { label: '恢复默认位置', click: () => void updateSettingsFromMenu({ position: null }) },
     { type: 'separator' },
-    { label: '设置…', click: () => void openSettingsWindow() },
+    {
+      label: '设置…',
+      click: () =>
+        void openSettingsWindow().catch((error) =>
+          console.error('[pi-deepseek-pet] Failed to open settings window:', error),
+        ),
+    },
     { type: 'separator' },
     { label: '退出 Pi DeepSeek Pet', click: () => app.quit() },
   ];

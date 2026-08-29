@@ -1,6 +1,6 @@
 {
   "name": "pi-deepseek-pet-desktop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Transparent Pi DeepSeek Pet desktop application driven by Pi lifecycle status",
   "author": "SchneeHertz",
   "repository": {

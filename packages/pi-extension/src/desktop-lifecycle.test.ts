@@ -1,7 +1,10 @@
-import { resolve } from 'node:path';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { PiLifecycleDescriptor } from '@pi-deepseek-pet/protocol';
 import { PiDesktopLifecycle } from './desktop-lifecycle.js';
+
+vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 
 const descriptor: PiLifecycleDescriptor = {
   schemaVersion: 1,
@@ -24,6 +27,22 @@ describe('PiDesktopLifecycle', () => {
 
     expect(await lifecycle.ensureStarted()).toBe(true);
     expect(launch).toHaveBeenCalledWith(descriptor.command, ['--pi-managed']);
+  });
+
+  it('does not hide windows created by the managed desktop process', async () => {
+    const child = { once: vi.fn(), unref: vi.fn() } as unknown as ChildProcess;
+    vi.mocked(spawn).mockReturnValue(child);
+    const lifecycle = new PiDesktopLifecycle({
+      readDescriptor: async () => descriptor,
+      isDesktopRunning: async () => false,
+    });
+
+    expect(await lifecycle.ensureStarted()).toBe(true);
+    expect(spawn).toHaveBeenCalledWith(descriptor.command, ['--pi-managed'], {
+      cwd: dirname(descriptor.command),
+      detached: true,
+      stdio: 'ignore',
+    });
   });
 
   it('does not launch a second desktop when health discovery succeeds', async () => {

@@ -251,7 +251,49 @@ test('a Pi-managed desktop exits after its final source is released', async () =
   });
 
   try {
-    await electronApp.firstWindow();
+    const page = await electronApp.firstWindow();
+    await expect(page.getByTestId('pet-root')).toBeVisible();
+
+    // 回归：Pi 使用 windowsHide 启动进程时，默认创建的设置窗会保持隐藏。
+    // 在 loadFile 返回前模拟该状态，设置窗逻辑必须显式 show；已存在的隐藏窗口也必须重新显示。
+    await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+      const originalLoadFile = BrowserWindow.prototype.loadFile;
+      BrowserWindow.prototype.loadFile = async function (filePath, options) {
+        await originalLoadFile.call(this, filePath, options);
+        if (options?.query?.view === 'settings') this.hide();
+      };
+      Menu.prototype.popup = function () {
+        const click = this.items.find((item) => item.label === '设置…')?.click as (() => void) | undefined;
+        click?.();
+      };
+    });
+
+    const settingsPagePromise = electronApp.waitForEvent('window');
+    await page.getByTestId('pet-root').click({ button: 'right', position: { x: 100, y: 100 } });
+    const settingsPage = await settingsPagePromise;
+    await expect(settingsPage.getByTestId('settings-view')).toBeVisible();
+    expect(
+      await settingsPage.evaluate(() => document.documentElement.scrollHeight <= document.documentElement.clientHeight),
+    ).toBe(true);
+    const settingsVisible = () =>
+      electronApp.evaluate(({ BrowserWindow }) =>
+        Boolean(
+          BrowserWindow.getAllWindows()
+            .find((window) => window.webContents.getURL().includes('view=settings'))
+            ?.isVisible(),
+        ),
+      );
+    expect(await settingsVisible()).toBe(true);
+
+    await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes('view=settings'))
+        ?.hide(),
+    );
+    expect(await settingsVisible()).toBe(false);
+    await page.getByTestId('pet-root').click({ button: 'right', position: { x: 100, y: 100 } });
+    await expect.poll(settingsVisible).toBe(true);
+
     await expect
       .poll(async () =>
         readFile(bridgeFile, 'utf8')
