@@ -98,6 +98,33 @@ test('transparent desktop window loads assets and accepts authenticated API acti
     expect(draggedBounds?.width).toBe(movedBounds?.width);
     expect(draggedBounds?.height).toBe(movedBounds?.height);
 
+    // 回归：巡游（左右跑动）期间 setPosition 曾导致窗口尺寸逐渐变大（Windows 150% 缩放）
+    const roamAccepted = await page.evaluate(() =>
+      window.piPet.requestRoam({
+        facing: 'left',
+        params: { minDist: 200, maxDist: 240, margin: 20, leadSec: 0.5, tailSec: 0.5 },
+        durationMs: 4000,
+      }),
+    );
+    expect(roamAccepted).toBe(true);
+    await expect
+      .poll(async () => {
+        const bounds = await electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+            ?.getBounds(),
+        );
+        return bounds?.x;
+      })
+      .not.toBe(draggedBounds?.x);
+    const roamedBounds = await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+        ?.getBounds(),
+    );
+    expect(roamedBounds?.width).toBe(draggedBounds?.width);
+    expect(roamedBounds?.height).toBe(draggedBounds?.height);
+
     // 回归：尺寸调整必须双向生效（resizable:false 下 setSize 曾被 Windows 最小尺寸钤制拒绝）
     await page.evaluate(() => window.piPet.updateSettings({ size: 320 }));
     await expect

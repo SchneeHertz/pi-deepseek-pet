@@ -146,6 +146,7 @@ async function startApplication(): Promise<void> {
     ...rendererPaths,
     iconPath: paths.iconFile,
     developmentUrl: process.env.VITE_DEV_SERVER_URL,
+    feetRatio: resources.manifest.canvas.feetY / resources.manifest.canvas.height,
     onContextMenu: showContextMenu,
   });
 

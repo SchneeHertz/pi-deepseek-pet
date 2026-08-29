@@ -1,14 +1,15 @@
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import {
-  clampWindowBounds,
-  normalizePosition,
+  clampPetWindowBounds,
+  normalizePetPosition,
   planHorizontalMove,
-  restorePosition,
+  restorePetPosition,
   PET_REFERENCE_WIDTH,
+  type PetClampRegion,
 } from '@pi-deepseek-pet/core';
 import type { PetSettings, PetSettingsPatch } from '@pi-deepseek-pet/protocol';
-import { BrowserWindow, screen, type Rectangle } from 'electron';
+import { BrowserWindow, screen, type Display, type Rectangle } from 'electron';
 import type { RoamRequest } from '../shared.js';
 import type { SettingsStore } from './settings-store.js';
 
@@ -25,6 +26,7 @@ export class PetWindowManager {
   readonly #iconPath: string;
   readonly #developmentUrl?: string;
   readonly #onContextMenu: () => void;
+  readonly #feetRatio: number;
   #window?: BrowserWindow;
   #drag?: DragState;
   #roamTimer?: ReturnType<typeof setInterval>;
@@ -36,6 +38,8 @@ export class PetWindowManager {
     iconPath: string;
     developmentUrl?: string;
     onContextMenu: () => void;
+    /** 脚底线在窗口高度中的相对位置（画布 feetY / 画布高度）。 */
+    feetRatio: number;
   }) {
     this.#settingsStore = options.settingsStore;
     this.#preloadPath = options.preloadPath;
@@ -43,10 +47,15 @@ export class PetWindowManager {
     this.#iconPath = options.iconPath;
     this.#developmentUrl = options.developmentUrl;
     this.#onContextMenu = options.onContextMenu;
+    this.#feetRatio = options.feetRatio;
   }
 
   get window(): BrowserWindow | undefined {
     return this.#window;
+  }
+
+  #regionFor(display: Display): PetClampRegion {
+    return { workArea: display.workArea, displayBounds: display.bounds, feetRatio: this.#feetRatio };
   }
 
   async create(): Promise<BrowserWindow> {
@@ -117,10 +126,10 @@ export class PetWindowManager {
       return;
     }
     window.setBounds(
-      restorePosition(
+      restorePetPosition(
         settings.position,
         { width: settings.size, height: Math.round((settings.size * 9) / 16) },
-        display.workArea,
+        this.#regionFor(display),
       ),
     );
   }
@@ -142,7 +151,9 @@ export class PetWindowManager {
       y: this.#drag.bounds.y + (screenY - this.#drag.screenY),
     };
     const display = screen.getDisplayMatching(desired);
-    const clamped = clampWindowBounds(desired, display.workArea, Math.max(desired.width, desired.height));
+    // 以脚底为锚点钳制：桌宠可沿纵向一路压到物理屏幕底边，站上任务栏边框，
+    // 而不再被限制在工作区（任务栏上方）之内。
+    const clamped = clampPetWindowBounds(desired, this.#regionFor(display));
     // 用 setBounds 显式携带尺寸而非 setPosition：Windows 小数缩放（如 150%）下
     // 逐次 setPosition 会让窗口高度每次 +1px 逐渐变大（Electron DPI 转换缺陷）
     const size = this.#settingsStore.value.size;
@@ -200,7 +211,15 @@ export class PetWindowManager {
       const elapsed = Date.now() - startedAt;
       const progress = Math.min(1, Math.max(0, (elapsed - leadMs) / travelMs));
       const x = Math.round(plan.startX + (plan.targetX - plan.startX) * progress);
-      this.#window.setPosition(x, bounds.y, false);
+      // 与 dragTo 一致：用 setBounds 显式携带尺寸而非 setPosition，避免 Windows 小数缩放
+      // （如 150%）下逐次 setPosition 触发 DPI 转换缺陷导致窗口尺寸逐渐变大。
+      const size = this.#settingsStore.value.size;
+      this.#window.setBounds({
+        x,
+        y: bounds.y,
+        width: size,
+        height: Math.round((size * 9) / 16),
+      });
       if (elapsed >= request.durationMs - tailMs || progress >= 1) {
         this.stopRoam();
         void this.persistPosition();
@@ -241,7 +260,7 @@ export class PetWindowManager {
     if (!window || window.isDestroyed()) return;
     const bounds = window.getBounds();
     const display = screen.getDisplayMatching(bounds);
-    const visible = clampWindowBounds(bounds, display.workArea);
+    const visible = clampPetWindowBounds(bounds, this.#regionFor(display));
     if (visible.x !== bounds.x || visible.y !== bounds.y) window.setBounds(visible);
     if (persist) void this.persistPosition();
   }
@@ -251,7 +270,7 @@ export class PetWindowManager {
     if (!window || window.isDestroyed()) return;
     const bounds = window.getBounds();
     const display = screen.getDisplayMatching(bounds);
-    const position = normalizePosition(bounds, display.workArea);
+    const position = normalizePetPosition(bounds, this.#regionFor(display));
     await this.#settingsStore.update({
       position: { displayId: String(display.id), xRatio: position.xRatio, yRatio: position.yRatio },
     });
@@ -263,10 +282,10 @@ export class PetWindowManager {
         .getAllDisplays()
         .find((candidate) => String(candidate.id) === settings.position?.displayId);
       if (display) {
-        return restorePosition(
+        return restorePetPosition(
           settings.position,
           { width: settings.size, height: Math.round((settings.size * 9) / 16) },
-          display.workArea,
+          this.#regionFor(display),
         );
       }
     }

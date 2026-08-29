@@ -1,6 +1,6 @@
 {
   "name": "@pi-deepseek-pet/core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Host-independent animation controller and movement geometry for Pi DeepSeek Pet",
   "author": "SchneeHertz",
   "repository": {
