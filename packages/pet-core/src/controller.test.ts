@@ -71,11 +71,11 @@ describe('PetController', () => {
     expect(controller.snapshot.playback.generation).toBe(currentGeneration);
   });
 
-  it('filters noMirror categories while facing right', () => {
-    const rolls = [0, 0, 0, 0.999, 0.999, 0];
+  it('filters noMirror animations while facing right', () => {
+    const rolls = [0, 0, 0, 0.999, 0.999, 0.999];
     const controller = new PetController(manifest, {
       initialPhase: 'idle',
-      rng: () => rolls.shift() ?? 0,
+      rng: () => rolls.shift() ?? 0.999,
     });
     // First idle chain roll picks a turn; finishing it flips the pet to the right.
     const firstGeneration = controller.snapshot.playback.generation;
@@ -83,9 +83,28 @@ describe('PetController', () => {
     const turnGeneration = controller.snapshot.playback.generation;
     controller.animationEnded(turnGeneration);
     expect(controller.snapshot.facing).toBe('right');
-    expect(manifest.categories.find((category) => category.noMirror)?.actions).not.toContain(
-      controller.snapshot.playback.animation,
-    );
+    expect(manifest.noMirror).not.toContain(controller.snapshot.playback.animation);
+    // The noMirror-only category must be skipped entirely instead of falling back to idle.
+    expect(controller.snapshot.playback.animation).not.toBe(manifest.idle[0]);
+  });
+
+  it('excludes noMirror animations from state pools while facing right', () => {
+    const controller = new PetController(manifest, { rng: () => 0, initialPhase: 'idle' });
+    // The first ambient roll is a turn; finishing it flips the pet to the right.
+    controller.animationEnded(controller.snapshot.playback.generation);
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.facing).toBe('right');
+    // 写代码 carries screen text; while facing right it must not play mirrored.
+    controller.setPersistentPhase('tool');
+    expect(controller.snapshot.playback.phase).toBe('tool');
+    expect(controller.snapshot.playback.animation).toBe('原地敲击桌面互动');
+  });
+
+  it('plays noMirror animations while facing left', () => {
+    const controller = new PetController(manifest, { rng: () => 0.999, initialPhase: 'idle' });
+    controller.animationEnded(controller.snapshot.playback.generation);
+    expect(controller.snapshot.facing).toBe('left');
+    expect(controller.snapshot.playback.animation).toBe('深度思考碎碎念');
   });
 
   it('runs the ambient chain while offline instead of looping the idle fallback', () => {

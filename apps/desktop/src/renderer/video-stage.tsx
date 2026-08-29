@@ -5,16 +5,19 @@ export function VideoStage(props: {
   assetBaseUrl: string;
   playback: PlaybackInstruction;
   facing: Facing;
+  noMirror?: readonly string[];
   onEnded: (generation: number) => void;
   onFailed: (generation: number) => void;
   onReady: (playback: PlaybackInstruction, durationMs: number) => void;
 }): React.JSX.Element {
-  const { assetBaseUrl, playback, facing, onEnded, onFailed, onReady } = props;
+  const { assetBaseUrl, playback, facing, noMirror = [], onEnded, onFailed, onReady } = props;
   const videoA = useRef<HTMLVideoElement>(null);
   const videoB = useRef<HTMLVideoElement>(null);
   const front = useRef<0 | 1>(0);
   const latestGeneration = useRef(playback.generation);
   const readyGeneration = useRef<number | undefined>(undefined);
+
+  const mirrored = facing === 'right' && !noMirror.includes(playback.animation);
 
   useEffect(() => {
     latestGeneration.current = playback.generation;
@@ -36,7 +39,7 @@ export function VideoStage(props: {
         previous.pause();
       }
       front.current = targetIndex;
-      target.style.transform = facing === 'right' ? 'scaleX(-1)' : '';
+      target.style.transform = mirrored ? 'scaleX(-1)' : '';
       target.onended = () => {
         if (latestGeneration.current === generation) onEnded(generation);
       };
@@ -64,13 +67,13 @@ export function VideoStage(props: {
     target.load();
     if (target.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ready();
     return () => target.removeEventListener('loadeddata', ready);
-  }, [assetBaseUrl, playback, facing, onEnded, onFailed, onReady]);
+  }, [assetBaseUrl, playback, facing, mirrored, onEnded, onFailed, onReady]);
 
   useEffect(() => {
-    const transform = facing === 'right' ? 'scaleX(-1)' : '';
+    const transform = mirrored ? 'scaleX(-1)' : '';
     if (videoA.current) videoA.current.style.transform = transform;
     if (videoB.current) videoB.current.style.transform = transform;
-  }, [facing]);
+  }, [mirrored, facing, playback.animation]);
 
   return (
     <div className="video-stage" aria-label={`Pi DeepSeek Pet 动画：${playback.animation}`}>

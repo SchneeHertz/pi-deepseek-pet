@@ -96,6 +96,7 @@ export const AnimationManifestSchema = z
           .strict(),
       )
       .min(1),
+    noMirror: z.array(AnimationNameSchema).default([]),
     weights: z
       .object({
         idle: z.number().nonnegative(),
@@ -141,6 +142,11 @@ export const AnimationManifestSchema = z
         if (!assets.has(name)) {
           context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: `unknown animation: ${name}` });
         }
+      }
+    }
+    for (const name of manifest.noMirror) {
+      if (!assets.has(name)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['noMirror'], message: `unknown animation: ${name}` });
       }
     }
 

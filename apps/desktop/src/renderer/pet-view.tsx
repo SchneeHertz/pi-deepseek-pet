@@ -183,6 +183,7 @@ function ActivePet({ initial }: { initial: RendererBootstrap }): React.JSX.Eleme
         assetBaseUrl={initial.assetBaseUrl}
         playback={snapshot.playback}
         facing={snapshot.facing}
+        noMirror={initial.manifest.noMirror}
         onEnded={onEnded}
         onFailed={onFailed}
         onReady={onReady}

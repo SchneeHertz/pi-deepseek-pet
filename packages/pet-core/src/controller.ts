@@ -57,6 +57,7 @@ export class PetController {
   readonly #clock: Clock;
   readonly #onDiagnostic: (message: string) => void;
   readonly #available: Set<string>;
+  readonly #noMirrorAssets: Set<string>;
   #persistentPhase: VisualPhase;
   #facing: Facing = 'left';
   #dragging = false;
@@ -73,6 +74,10 @@ export class PetController {
     this.#clock = options.clock ?? systemClock;
     this.#onDiagnostic = options.onDiagnostic ?? (() => undefined);
     this.#available = new Set(options.availableAnimations ?? manifest.assets);
+    this.#noMirrorAssets = new Set([
+      ...manifest.noMirror,
+      ...manifest.categories.filter((category) => category.noMirror).flatMap((category) => category.actions),
+    ]);
     this.#persistentPhase = options.initialPhase ?? 'offline';
     this.#ambientActions = options.ambientActions ?? true;
     const initial = this.#pickFromPool(manifest.phasePools[this.#persistentPhase]);
@@ -229,7 +234,9 @@ export class PetController {
       return;
     }
     if (kind === 'move') {
-      const availableMoves = this.#manifest.moves.actions.filter((move) => this.#available.has(move.name));
+      const availableMoves = this.#manifest.moves.actions.filter(
+        (move) => this.#available.has(move.name) && !this.#isMirrored(move.name),
+      );
       if (availableMoves.length > 0) {
         const selected = pick(availableMoves, this.#rng);
         this.#setPlayback('ambient', selected.name, {
@@ -242,11 +249,10 @@ export class PetController {
 
     const categories = this.#manifest.categories.filter(
       (category) =>
-        category.actions.some((animation) => this.#available.has(animation)) &&
+        category.actions.some((animation) => this.#available.has(animation) && !this.#isMirrored(animation)) &&
         !(category.noMirror && this.#facing === 'right'),
     );
-    const fallbackCategories = categories.length > 0 ? categories : this.#manifest.categories;
-    const category = pickWeighted(fallbackCategories, this.#rng);
+    const category = pickWeighted(categories, this.#rng);
     if (category) {
       this.#setPlayback('ambient', this.#pickFromPool(category.actions, this.#playback.animation), { phase });
       return;
@@ -255,13 +261,21 @@ export class PetController {
   }
 
   #pickFromPool(pool: readonly string[], exclude?: string): string {
-    const available = pool.filter((animation) => this.#available.has(animation));
+    const available = pool.filter((animation) => this.#available.has(animation) && !this.#isMirrored(animation));
     if (available.length > 0) return pick(available, this.#rng, exclude);
-    const idle = this.#manifest.idle.filter((animation) => this.#available.has(animation));
+    const idle = this.#manifest.idle.filter(
+      (animation) => this.#available.has(animation) && !this.#isMirrored(animation),
+    );
     if (idle.length > 0) return pick(idle, this.#rng, exclude);
-    const any = this.#manifest.assets.find((animation) => this.#available.has(animation));
+    const any = this.#manifest.assets.find(
+      (animation) => this.#available.has(animation) && !this.#isMirrored(animation),
+    );
     if (any) return any;
     throw new Error('Pi DeepSeek Pet has no available animation resources');
+  }
+
+  #isMirrored(animation: string): boolean {
+    return this.#facing === 'right' && this.#noMirrorAssets.has(animation);
   }
 
   #setPlayback(
