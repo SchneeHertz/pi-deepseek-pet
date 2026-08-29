@@ -1,5 +1,11 @@
 # Pi DeepSeek Pet 🐾
 
+[简体中文](README.md) | English
+
+<p align="center">
+  <img src="assets/preview/hero-xie-daima.gif" width="280" alt="Pi DeepSeek Pet typing on a laptop">
+</p>
+
 Pi DeepSeek Pet is a standalone Windows desktop pet that visualizes [Pi](https://pi.dev) lifecycle status through a secure loopback HTTP bridge.
 
 It includes a transparent Electron window, 97 VP9-alpha WebM animations, click/drag/roaming interactions, a host-independent animation controller, a versioned `/api/v1`, and a non-blocking Pi extension. Its settings can also register the bundled extension so the pet starts with Pi and closes after the last Pi process exits.
