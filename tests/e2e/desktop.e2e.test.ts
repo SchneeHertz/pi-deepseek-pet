@@ -329,3 +329,66 @@ test('a Pi-managed desktop exits after its final source is released', async () =
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });
+
+test('waiting phase (ask) bubble stays visible and clears after leaving waiting', async () => {
+  test.setTimeout(45_000);
+  const projectRoot = resolve(process.cwd(), '../..');
+  const temporaryDirectory = resolve(projectRoot, 'temp', `e2e-bubble-${randomUUID()}`);
+  const bridgeFile = resolve(temporaryDirectory, 'bridge-v1.json');
+  await mkdir(temporaryDirectory, { recursive: true });
+
+  const electronApp = await electron.launch({
+    args: [process.cwd()],
+    env: {
+      ...process.env,
+      PI_DEEPSEEK_PET_ASSETS_DIR: resolve(projectRoot, 'assets'),
+      PI_DEEPSEEK_PET_DATA_DIR: temporaryDirectory,
+      PI_DEEPSEEK_PET_BRIDGE_FILE: bridgeFile,
+      PI_DEEPSEEK_PET_ELECTRON_USER_DATA_DIR: resolve(temporaryDirectory, 'electron-user-data'),
+      PI_CODING_AGENT_DIR: resolve(temporaryDirectory, 'pi-agent'),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByTestId('pet-root')).toBeVisible();
+    await expect
+      .poll(async () =>
+        readFile(bridgeFile, 'utf8')
+          .then(() => true)
+          .catch(() => false),
+      )
+      .toBe(true);
+    const descriptor = JSON.parse(await readFile(bridgeFile, 'utf8')) as BridgeDescriptor;
+    const headers = { authorization: `Bearer ${descriptor.token}`, 'content-type': 'application/json' };
+    const putState = (sequence: number, phase: 'waiting' | 'idle') =>
+      fetch(`${descriptor.baseUrl}/api/v1/sources/source-bubble/state`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          protocolVersion: 1,
+          sequence,
+          sentAt: new Date().toISOString(),
+          phase,
+          source: { kind: 'pi', label: 'Pi', projectName: 'bubble-e2e' },
+          activity: phase === 'waiting' ? { toolName: 'ask', activeToolCount: 1 } : undefined,
+        }),
+      });
+
+    const bubble = page.locator('.pet-bubble');
+    const waitingResponse = await putState(1, 'waiting');
+    expect(waitingResponse.status).toBe(200);
+    await expect(bubble).toHaveText('Pi 正在等待操作', { timeout: 10_000 });
+
+    // 回归：waiting 气泡必须常驻，超过默认 5 秒后仍应显示，直到离开 waiting。
+    await page.waitForTimeout(6_500);
+    await expect(bubble).toHaveText('Pi 正在等待操作');
+
+    const idleResponse = await putState(2, 'idle');
+    expect(idleResponse.status).toBe(200);
+    await expect(page.locator('.pet-bubble')).toHaveCount(0, { timeout: 10_000 });
+  } finally {
+    await electronApp.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});

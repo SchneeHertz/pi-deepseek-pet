@@ -41,19 +41,33 @@ function ActivePet({ initial }: { initial: RendererBootstrap }): React.JSX.Eleme
   const phaseRef = useRef<VisualPhase>(initial.presentation.phase);
 
   const refresh = useCallback(() => render((value) => value + 1), []);
+  // durationMs 为 null 时气泡常驻(不自动消失),直到下次 showBubble 被调用;
+  // 传入空文本则立即清除气泡。
   const showBubble = useCallback(
-    (text: string | undefined, durationMs = 5_000) => {
-      if (!settings.bubblesEnabled || !text) return;
-      if (bubbleTimer.current !== undefined) window.clearTimeout(bubbleTimer.current);
+    (text: string | undefined, durationMs: number | null = 5_000) => {
+      if (!settings.bubblesEnabled) return;
+      if (bubbleTimer.current !== undefined) {
+        window.clearTimeout(bubbleTimer.current);
+        bubbleTimer.current = undefined;
+      }
+      if (!text) {
+        setBubble(undefined);
+        return;
+      }
       setBubble(text);
-      bubbleTimer.current = window.setTimeout(() => setBubble(undefined), durationMs);
+      if (durationMs !== null) {
+        bubbleTimer.current = window.setTimeout(() => setBubble(undefined), durationMs);
+      }
     },
     [settings.bubblesEnabled],
   );
 
   useEffect(() => {
     window.piPet.setMousePassthrough(true);
-    showBubble(initial.manifest.bubbles.phases[initial.presentation.phase]);
+    showBubble(
+      initial.manifest.bubbles.phases[initial.presentation.phase],
+      initial.presentation.phase === 'waiting' ? null : undefined,
+    );
     const unsubscribe = window.piPet.subscribe((event: RendererEvent) => {
       if (event.type === 'presentation') {
         const previousPhase = phaseRef.current;
@@ -61,10 +75,12 @@ function ActivePet({ initial }: { initial: RendererBootstrap }): React.JSX.Eleme
         setPresentation(event.presentation);
         controller.setPersistentPhase(event.presentation.phase);
         if (event.presentation.phase !== previousPhase) {
+          // waiting(如 ask 提问)期间气泡常驻,直到相位离开 waiting 才消失。
+          const sticky = event.presentation.phase === 'waiting';
           if (event.presentation.phase === 'tool' && event.presentation.toolName) {
-            showBubble(`工具：${event.presentation.toolName}`);
+            showBubble(`工具：${event.presentation.toolName}`, sticky ? null : undefined);
           } else {
-            showBubble(initial.manifest.bubbles.phases[event.presentation.phase]);
+            showBubble(initial.manifest.bubbles.phases[event.presentation.phase], sticky ? null : undefined);
           }
         }
         refresh();
