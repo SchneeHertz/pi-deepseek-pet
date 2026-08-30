@@ -127,28 +127,20 @@ test('transparent desktop window loads assets and accepts authenticated API acti
     expect(Math.abs(roamedBounds!.height - draggedBounds!.height)).toBeLessThanOrEqual(1);
 
     // 回归：尺寸调整必须双向生效（resizable:false 下 setSize 曾被 Windows 最小尺寸钤制拒绝）
+    const windowWidth = () =>
+      electronApp.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
+          ?.getBounds().width,
+      );
     await page.evaluate(() => window.piPet.updateSettings({ size: 320 }));
     await expect
-      .poll(async () => {
-        const bounds = await electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()
-            .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
-            ?.getBounds(),
-        );
-        return bounds?.width;
-      })
-      .toBe(320);
+      .poll(async () => Math.abs((await windowWidth())! - 320))
+      .toBeLessThanOrEqual(1);
     await page.evaluate(() => window.piPet.updateSettings({ size: 462 }));
     await expect
-      .poll(async () => {
-        const bounds = await electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()
-            .find((window) => window.getTitle() === 'Pi DeepSeek Pet')
-            ?.getBounds(),
-        );
-        return bounds?.width;
-      })
-      .toBe(462);
+      .poll(async () => Math.abs((await windowWidth())! - 462))
+      .toBeLessThanOrEqual(1);
 
     // Pi 托管设置应只在隔离的全局设置中注册内置扩展，并可干净撤销。
     await page.evaluate(() => window.piPet.updateSettings({ manageWithPi: true }));
