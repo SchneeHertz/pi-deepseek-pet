@@ -1,7 +1,7 @@
 # pi-deepseek-pet-extension
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/SchneeHertz/pi-deepseek-pet/main/assets/preview/hero-xie-daima.gif" alt="Pi DeepSeek Pet" width="280">
+  <img src="https://raw.githubusercontent.com/SchneeHertz/pi-deepseek-pet/main/assets/preview/hero-qiaoji-zhuomian.gif" alt="Pi DeepSeek Pet" width="280">
 </p>
 
 Pi Package that forwards safe Pi lifecycle phases to the local Pi DeepSeek Pet desktop app. It registers no LLM tools and is non-blocking when the desktop app is unavailable. The published `dist/index.js` bundles its protocol runtime, so no workspace package is required after installation.

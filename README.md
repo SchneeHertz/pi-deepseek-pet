@@ -3,7 +3,7 @@
 [English](README.en.md) | 简体中文
 
 <p align="center">
-  <img src="assets/preview/hero-xie-daima.gif" width="280" alt="Pi DeepSeek Pet 写代码动画">
+  <img src="assets/preview/hero-qiaoji-zhuomian.gif" width="280" alt="Pi DeepSeek Pet 敲击桌面动画">
 </p>
 
 Pi DeepSeek Pet 是一个独立的 Windows 桌面宠物，并通过本机 HTTP bridge 展示 [Pi](https://pi.dev) 的运行状态。

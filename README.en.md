@@ -3,7 +3,7 @@
 [简体中文](README.md) | English
 
 <p align="center">
-  <img src="assets/preview/hero-xie-daima.gif" width="280" alt="Pi DeepSeek Pet typing on a laptop">
+  <img src="assets/preview/hero-qiaoji-zhuomian.gif" width="280" alt="Pi DeepSeek Pet knocking on the desktop">
 </p>
 
 Pi DeepSeek Pet is a standalone Windows desktop pet that visualizes the runtime status of [Pi](https://pi.dev) through a secure loopback HTTP bridge.
