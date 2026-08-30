@@ -174,6 +174,11 @@ describe('animation manifest', () => {
     expect(compareManifestAssets(manifest, manifest.assets)).toEqual({ missing: [], unexpected: [] });
   });
 
+  it('moves the running window only during the visible sprint segment', () => {
+    const action = manifest.moves.actions.find((move) => move.name === '原地左转奔跑');
+    expect({ ...manifest.moves.default, ...action?.params }).toMatchObject({ leadSec: 1.75, tailSec: 5.75 });
+  });
+
   it('rejects references to missing resources', () => {
     const broken = structuredClone(manifest);
     broken.phasePools.thinking = ['missing'];

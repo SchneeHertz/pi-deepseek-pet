@@ -199,27 +199,31 @@ export class PetWindowManager {
     });
     if (!plan) return false;
 
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     const leadMs = params.leadSec * 1_000;
     const tailMs = params.tailSec * 1_000;
     const travelMs = Math.max(100, request.durationMs - leadMs - tailMs);
+    let lastX = bounds.x;
     this.#roamTimer = setInterval(() => {
       if (!this.#window || this.#window.isDestroyed()) {
         this.stopRoam();
         return;
       }
-      const elapsed = Date.now() - startedAt;
+      const elapsed = performance.now() - startedAt;
       const progress = Math.min(1, Math.max(0, (elapsed - leadMs) / travelMs));
       const x = Math.round(plan.startX + (plan.targetX - plan.startX) * progress);
-      // 与 dragTo 一致：用 setBounds 显式携带尺寸而非 setPosition，避免 Windows 小数缩放
-      // （如 150%）下逐次 setPosition 触发 DPI 转换缺陷导致窗口尺寸逐渐变大。
-      const size = this.#settingsStore.value.size;
-      this.#window.setBounds({
-        x,
-        y: bounds.y,
-        width: size,
-        height: Math.round((size * 9) / 16),
-      });
+      if (x !== lastX) {
+        lastX = x;
+        // 与 dragTo 一致：用 setBounds 显式携带尺寸而非 setPosition，避免 Windows 小数缩放
+        // （如 150%）下逐次 setPosition 触发 DPI 转换缺陷导致窗口尺寸逐渐变大。
+        const size = this.#settingsStore.value.size;
+        this.#window.setBounds({
+          x,
+          y: bounds.y,
+          width: size,
+          height: Math.round((size * 9) / 16),
+        });
+      }
       if (elapsed >= request.durationMs - tailMs || progress >= 1) {
         this.stopRoam();
         void this.persistPosition();
