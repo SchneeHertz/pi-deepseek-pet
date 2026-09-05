@@ -67,7 +67,7 @@ API 只绑定 `127.0.0.1`。除 health 外，路由要求启动期随机 256-bit
 
 WebM 通过 `extraResources` 放在 asar 外。`pet-asset://animation/` 仅接受清单中且实际存在的文件，支持 byte Range。缺少映射资源会在启动时报告；单个文件运行时失败时，Controller 标记不可用并回退待机。
 
-`~/.pi-deepseek-pet/config.json` 保存大小、置顶、环境动作、气泡、登录启动、固定 source 和归一化显示器位置，不保存活动历史或 Pi 内容。
+`~/.pi-deepseek-pet/config.json` 保存大小、置顶、环境动作、气泡、登录启动、Pi 联动启动、集成脚本配置、固定 source 和归一化显示器位置，不保存活动历史或 Pi 内容。Pi 联动启动和集成脚本配置相互独立；后者用单独的注册记录确保只撤销 Desktop 自己写入的扩展路径。
 
 ## 7. 扩展生命周期
 

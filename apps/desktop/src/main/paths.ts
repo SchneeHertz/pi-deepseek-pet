@@ -7,6 +7,7 @@ export interface AppPaths {
   settingsFile: string;
   bridgeFile: string;
   lifecycleFile: string;
+  piExtensionRegistrationFile: string;
   piSettingsFile: string;
   bundledExtensionFile: string;
   assetsDirectory: string;
@@ -39,6 +40,7 @@ export function resolveAppPaths(app: App): AppPaths {
     lifecycleFile: process.env.PI_DEEPSEEK_PET_LIFECYCLE_FILE
       ? resolve(process.env.PI_DEEPSEEK_PET_LIFECYCLE_FILE)
       : join(dataDirectory, 'pi-lifecycle-v1.json'),
+    piExtensionRegistrationFile: join(dataDirectory, 'pi-extension-registration-v1.json'),
     piSettingsFile: join(piAgentDirectory, 'settings.json'),
     bundledExtensionFile: app.isPackaged
       ? join(process.resourcesPath, 'pi-extension', 'index.js')

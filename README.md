@@ -13,7 +13,7 @@ Pi DeepSeek Pet 是一个独立的 Windows 桌面宠物，并通过本机 HTTP b
 - 待机随机链、转向、漫游、点击反馈、拖拽和气泡
 - `thinking`、`responding`、`tool`、`waiting`、`compacting` 等 Pi 状态映射
 - 仅监听 `127.0.0.1`、每次启动随机 Token、严格 Schema 的 `/api/v1`
-- 设置页可一键启用“随 Pi 启动和退出”，自动加载扩展、启动桌宠，并在最后一个 Pi 退出时关闭
+- 设置页可分别自动配置 Pi 集成脚本，以及启用“随 Pi 联动启动和退出”
 - Pi 不可达或桌宠未启动时，扩展保持静默且不阻塞 Pi
 
 ## 架构
@@ -67,11 +67,16 @@ pnpm package:win
 
 安装器输出到 `apps/desktop/release/`。应用可独立离线使用；不需要先启动 Pi。升级时直接运行新版安装器；卸载使用 Windows“设置 → 应用 → 已安装的应用 → Pi DeepSeek Pet”。卸载器保留 `~/.pi-deepseek-pet/` 中的用户设置，若不再需要可手动删除。
 
-若希望桌宠只在 Pi 运行期间出现：打开托盘菜单“设置…”，启用 **随 Pi 启动和退出** 并保存。Desktop 会把内置扩展加入 Pi 全局设置；重启 Pi 后，Pi 会自动启动桌宠，最后一个 Pi 进程退出后桌宠自动关闭。已运行的 Pi 可执行 `/reload` 立即加载。该选项与“登录后自动启动”互斥。
+打开托盘菜单“设置…”后，Pi 集成可分开配置：
+
+- **自动配置 Pi 集成脚本**：把内置扩展加入 Pi 全局设置，使桌宠接收 Pi 状态；不改变桌宠的启动方式。已运行的 Pi 可执行 `/reload` 立即加载，否则下次启动生效。
+- **随 Pi 联动启动和退出**：允许已加载的扩展启动桌宠，并在最后一个 Pi 进程退出后关闭由 Pi 启动的桌宠。它需要集成脚本已通过上一个选项或 Pi Package 加载，并与“登录后自动启动”互斥。
+
+因此，也可以只配置集成脚本，再手动启动桌宠或让它登录后自动启动。
 
 ### Pi 扩展
 
-上面的设置会自动配置内置扩展；也可以手动安装独立 Pi Package。开发安装（先执行 `pnpm build`）：
+设置页可以自动配置内置扩展；也可以手动安装独立 Pi Package。开发安装（先执行 `pnpm build`）：
 
 ```powershell
 pi install ./packages/pi-extension
@@ -97,7 +102,7 @@ pi remove npm:pi-deepseek-pet-extension
 
 默认上报只包含：项目目录 basename、可选会话名、模型标识、thinking level、phase、工具名和活动工具数量。**不会上报** prompt、回复、完整 cwd、工具参数、工具结果或文件内容。
 
-Bridge 描述文件位于 `~/.pi-deepseek-pet/bridge-v1.json`，包含短期连接 Token；请勿共享。“随 Pi 启停”的本机启动描述文件位于 `~/.pi-deepseek-pet/pi-lifecycle-v1.json`，只保存应用、扩展安装路径和启动参数。控制 API 不开放局域网，不返回 CORS 许可，并拒绝浏览器 `Origin` 请求。
+Bridge 描述文件位于 `~/.pi-deepseek-pet/bridge-v1.json`，包含短期连接 Token；请勿共享。“随 Pi 联动启动和退出”的本机启动描述文件位于 `~/.pi-deepseek-pet/pi-lifecycle-v1.json`，只保存应用、扩展安装路径和启动参数；Desktop 自动配置的脚本路径另记录在 `~/.pi-deepseek-pet/pi-extension-registration-v1.json`，以便只撤销自己管理的设置。控制 API 不开放局域网，不返回 CORS 许可，并拒绝浏览器 `Origin` 请求。
 
 详见：
 

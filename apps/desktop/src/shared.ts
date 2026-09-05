@@ -11,10 +11,17 @@ export interface DesktopPresentation {
   onlineSourceCount: number;
 }
 
-export type PiIntegrationStatus =
+export type PiLaunchStatus = { state: 'disabled' } | { state: 'enabled' } | { state: 'error'; message: string };
+
+export type PiExtensionStatus =
   | { state: 'disabled' }
   | { state: 'enabled'; extensionSource: 'bundled' | 'package' }
   | { state: 'error'; message: string };
+
+export interface PiIntegrationStatus {
+  launch: PiLaunchStatus;
+  extension: PiExtensionStatus;
+}
 
 export interface RendererBootstrap {
   appVersion: string;

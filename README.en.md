@@ -13,7 +13,7 @@ Pi DeepSeek Pet is a standalone Windows desktop pet that visualizes the runtime 
 - Idle random chains, turning, roaming, click feedback, drag, and speech bubbles
 - Pi state mapping for `thinking`, `responding`, `tool`, `waiting`, `compacting`, and more
 - Versioned `/api/v1` listening on `127.0.0.1` only, with a random token on every launch and strict schemas
-- Settings page can enable **Start and stop with Pi** in one click: registers the bundled extension, launches the pet, and closes it after the last Pi process exits
+- Settings page configures the Pi integration script and **Linked start and stop with Pi** independently
 - When Pi is unreachable or the pet is not running, the extension stays silent and never blocks Pi
 
 ## Architecture
@@ -67,11 +67,16 @@ pnpm package:win
 
 The installer is written to `apps/desktop/release/`. The app works standalone offline; starting Pi is not required. To upgrade, run the newer installer; to uninstall, use Windows "Settings → Apps → Installed apps → Pi DeepSeek Pet". The uninstaller keeps user settings in `~/.pi-deepseek-pet/`; delete them manually if no longer needed.
 
-To show the pet only while Pi is running: open the tray menu "Settings…", enable **Start and stop with Pi**, and save. Desktop adds the bundled extension to the Pi global settings; after restarting Pi, Pi launches the pet automatically and the pet closes after the last Pi process exits. An already-running Pi can load it immediately with `/reload`. This option is mutually exclusive with launch at login.
+Open "Settings…" from the tray menu to configure the two Pi integration behaviors independently:
+
+- **Automatically configure the Pi integration script** adds the bundled extension to Pi's global settings so the pet can receive Pi status. It does not change how the desktop app starts. Run `/reload` in an existing Pi process to load it immediately, or restart Pi.
+- **Linked start and stop with Pi** lets the loaded extension launch the pet and close a Pi-launched pet after the final Pi process exits. It requires the integration script to be loaded through the first option or a Pi Package, and it is mutually exclusive with launch at login.
+
+You can therefore configure only the integration script and start the pet manually or at login.
 
 ### Pi extension
 
-The setting above configures the bundled extension automatically; you can also install the standalone Pi Package manually. Development install (run `pnpm build` first):
+The settings page can configure the bundled extension automatically; you can also install the standalone Pi Package manually. Development install (run `pnpm build` first):
 
 ```powershell
 pi install ./packages/pi-extension
@@ -97,7 +102,7 @@ Commands: `/pet-status`, `/pet-reconnect`, `/pet-test`, `/pet-enable`, `/pet-dis
 
 The default report contains only: the project directory basename, optional session name, model identifier, thinking level, phase, tool name, and active tool count. **It never reports** prompts, replies, the full cwd, tool arguments, tool results, or file contents.
 
-The bridge descriptor lives in `~/.pi-deepseek-pet/bridge-v1.json` and contains a short-lived connection token; do not share it. The local launcher descriptor for "Start and stop with Pi" lives in `~/.pi-deepseek-pet/pi-lifecycle-v1.json` and stores only the app and extension install paths plus launch arguments. The control API is not exposed to the LAN, returns no CORS permission, and rejects browser `Origin` requests.
+The bridge descriptor lives in `~/.pi-deepseek-pet/bridge-v1.json` and contains a short-lived connection token; do not share it. The local launcher descriptor for "Linked start and stop with Pi" lives in `~/.pi-deepseek-pet/pi-lifecycle-v1.json` and stores only the app and extension install paths plus launch arguments. Desktop records its managed script path separately in `~/.pi-deepseek-pet/pi-extension-registration-v1.json`, allowing it to undo only its own Pi setting. The control API is not exposed to the LAN, returns no CORS permission, and rejects browser `Origin` requests.
 
 See also:
 

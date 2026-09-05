@@ -34,12 +34,12 @@ pi remove npm:pi-deepseek-pet-extension
 
 项目本地安装遵循 Pi project trust；全局安装对所有项目生效。移除扩展不影响桌宠离线运行，关闭或卸载桌宠也不影响 Pi。
 
-Desktop 设置页中的“随 Pi 启动和退出”会自动把安装包内置的扩展路径加入 `~/.pi/agent/settings.json`。若已配置 `pi-deepseek-pet-extension` Pi Package，则复用该 Package，避免重复加载。保存后重启 Pi，或在已运行的 Pi 中执行 `/reload`。
+Desktop 设置页将脚本配置和联动启停分为两个开关。“自动配置 Pi 集成脚本”会把安装包内置的扩展路径加入 `~/.pi/agent/settings.json`；若已配置 `pi-deepseek-pet-extension` Pi Package，则复用该 Package，避免重复加载。保存后重启 Pi，或在已运行的 Pi 中执行 `/reload`。“随 Pi 联动启动和退出”只写入本机生命周期描述文件，不修改 Pi 设置；它需要扩展已通过自动配置或 Pi Package 加载。
 
 ## 生命周期
 
 - Factory：只注册事件和命令，不启动 timer、watcher 或 socket。
-- `session_start`：若启用了 Desktop 的 Pi 托管设置，先通过本机生命周期描述文件检查并按需启动 Desktop；随后生成随机 sourceId，创建 transport，启动 10 秒心跳并发送 idle 快照。
+- `session_start`：若启用了 Desktop 的 Pi 联动启动设置，先通过本机生命周期描述文件检查并按需启动 Desktop；随后生成随机 sourceId，创建 transport，启动 10 秒心跳并发送 idle 快照。
 - `agent_start`：thinking。
 - thinking/text stream：只在 phase 变化时发送，不发送 delta。
 - tool start/end：以 toolCallId Map 支持并行工具；ask 类工具进入 waiting。

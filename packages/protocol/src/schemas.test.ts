@@ -37,6 +37,7 @@ describe('protocol v1 schemas', () => {
     expect(PetSettingsPatchSchema.safeParse({}).success).toBe(false);
     expect(PetSettingsPatchSchema.safeParse({ size: 462 }).success).toBe(true);
     expect(PetSettingsPatchSchema.safeParse({ manageWithPi: true }).success).toBe(true);
+    expect(PetSettingsPatchSchema.safeParse({ configurePiExtension: true }).success).toBe(true);
     expect(PetSettingsPatchSchema.safeParse({ size: 462, arbitrary: true }).success).toBe(false);
   });
 

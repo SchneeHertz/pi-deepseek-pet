@@ -32,10 +32,28 @@ describe('SettingsStore', () => {
     const file = resolve(directory, 'config.json');
     const legacy = { ...DEFAULT_SETTINGS } as Partial<typeof DEFAULT_SETTINGS>;
     delete legacy.manageWithPi;
+    delete legacy.configurePiExtension;
     await writeFile(file, JSON.stringify(legacy), 'utf8');
 
     const store = new SettingsStore(file);
-    expect(await store.load()).toMatchObject({ manageWithPi: false, size: DEFAULT_SETTINGS.size });
+    expect(await store.load()).toMatchObject({
+      manageWithPi: false,
+      configurePiExtension: false,
+      size: DEFAULT_SETTINGS.size,
+    });
+  });
+
+  it('preserves both behaviors from the legacy combined Pi integration setting', async () => {
+    const directory = testDirectory();
+    await mkdir(directory, { recursive: true });
+    const file = resolve(directory, 'config.json');
+    const legacy = { ...DEFAULT_SETTINGS } as Partial<typeof DEFAULT_SETTINGS>;
+    legacy.manageWithPi = true;
+    delete legacy.configurePiExtension;
+    await writeFile(file, JSON.stringify(legacy), 'utf8');
+
+    const store = new SettingsStore(file);
+    expect(await store.load()).toMatchObject({ manageWithPi: true, configurePiExtension: true });
   });
 
   it('rejects unknown settings', async () => {

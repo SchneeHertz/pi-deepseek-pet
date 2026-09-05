@@ -35,7 +35,7 @@ pnpm package:win     # NSIS 安装器
 
 `PI_DEEPSEEK_PET_ASSETS_DIR` 可覆盖开发素材目录；`PI_DEEPSEEK_PET_DATA_DIR` 可隔离 E2E 配置目录；`PI_DEEPSEEK_PET_BRIDGE_FILE` 可隔离 bridge 文件；`PI_DEEPSEEK_PET_LIFECYCLE_FILE` 可隔离 Pi 托管启动描述文件；`PI_DEEPSEEK_PET_ELECTRON_USER_DATA_DIR` 可隔离 Electron 单实例目录；`PI_CODING_AGENT_DIR` 可让 Desktop 测试写入隔离的 Pi 设置目录。正式用户不需要设置这些变量。
 
-Desktop 发布包通过 `extraResources` 携带 `packages/pi-extension/dist/index.js`。Pi 集成设置只增删自己管理的扩展路径，必须保留 `settings.json` 中其他字段和扩展；写入仍需临时文件 + rename。
+Desktop 发布包通过 `extraResources` 携带 `packages/pi-extension/dist/index.js`。Pi 集成脚本配置与联动启动分别同步：前者只增删自己管理的扩展路径，后者只管理生命周期描述文件。必须保留 `settings.json` 中其他字段和扩展；写入仍需临时文件 + rename。
 
 Main 日志不得记录请求 body 或 Token。Renderer 无 Node 权限。新增 IPC 时必须同时：
 

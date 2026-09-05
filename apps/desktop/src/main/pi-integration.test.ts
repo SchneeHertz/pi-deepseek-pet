@@ -6,21 +6,32 @@ import { PiLifecycleDescriptorSchema } from '@pi-deepseek-pet/protocol';
 import { PiIntegrationManager } from './pi-integration.js';
 
 const directories: string[] = [];
+const selection = (launchWithPi: boolean, configureExtension: boolean) => ({ launchWithPi, configureExtension });
 
 function createFixture() {
   const directory = resolve(process.cwd(), 'temp', `pi-integration-${randomUUID()}`);
   directories.push(directory);
   const piSettingsFile = resolve(directory, 'pi-agent', 'settings.json');
   const lifecycleFile = resolve(directory, 'pet', 'pi-lifecycle-v1.json');
+  const extensionRegistrationFile = resolve(directory, 'pet', 'pi-extension-registration-v1.json');
   const extensionFile = resolve(directory, 'app', 'resources', 'pi-extension', 'index.js');
   const desktopCommand = resolve(directory, 'app', 'Pi DeepSeek Pet.exe');
   const manager = new PiIntegrationManager({
     piSettingsFile,
     lifecycleFile,
+    extensionRegistrationFile,
     extensionFile,
     desktopCommand,
   });
-  return { directory, piSettingsFile, lifecycleFile, extensionFile, desktopCommand, manager };
+  return {
+    directory,
+    piSettingsFile,
+    lifecycleFile,
+    extensionRegistrationFile,
+    extensionFile,
+    desktopCommand,
+    manager,
+  };
 }
 
 async function prepareFiles(fixture: ReturnType<typeof createFixture>): Promise<void> {
@@ -51,7 +62,10 @@ describe('PiIntegrationManager', () => {
     await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
     await writeFile(fixture.piSettingsFile, JSON.stringify({ theme: 'light', extensions: ['./keep.ts'] }), 'utf8');
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'bundled' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'bundled' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as {
       theme: string;
       extensions: string[];
@@ -67,6 +81,51 @@ describe('PiIntegrationManager', () => {
     expect(descriptor.extensionPath).toBe(fixture.extensionFile);
   });
 
+  it('configures the integration script without enabling linked launch', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+
+    expect(await fixture.manager.sync(selection(false, true))).toEqual({
+      launch: { state: 'disabled' },
+      extension: { state: 'enabled', extensionSource: 'bundled' },
+    });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
+    expect(settings.extensions).toContain(fixture.extensionFile.replaceAll('\\', '/'));
+    await expect(readFile(fixture.lifecycleFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(JSON.parse(await readFile(fixture.extensionRegistrationFile, 'utf8'))).toMatchObject({
+      extensionPath: fixture.extensionFile,
+    });
+  });
+
+  it('enables linked launch without modifying Pi extension settings', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+
+    expect(await fixture.manager.sync(selection(true, false))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'disabled' },
+    });
+    expect(JSON.parse(await readFile(fixture.lifecycleFile, 'utf8'))).toMatchObject({
+      command: fixture.desktopCommand,
+    });
+    await expect(readFile(fixture.piSettingsFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(fixture.extensionRegistrationFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('can disable linked launch while keeping the configured integration script', async () => {
+    const fixture = createFixture();
+    await prepareFiles(fixture);
+    await fixture.manager.sync(selection(true, true));
+
+    expect(await fixture.manager.sync(selection(false, true))).toEqual({
+      launch: { state: 'disabled' },
+      extension: { state: 'enabled', extensionSource: 'bundled' },
+    });
+    const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
+    expect(settings.extensions).toContain(fixture.extensionFile.replaceAll('\\', '/'));
+    await expect(readFile(fixture.lifecycleFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('uses an installed Pi package without loading a duplicate bundled extension', async () => {
     const fixture = createFixture();
     await prepareFiles(fixture);
@@ -77,7 +136,10 @@ describe('PiIntegrationManager', () => {
       'utf8',
     );
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'package' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
     expect(settings.extensions).toBeUndefined();
   });
@@ -85,12 +147,15 @@ describe('PiIntegrationManager', () => {
   it('removes only the extension path previously managed by the desktop app', async () => {
     const fixture = createFixture();
     await prepareFiles(fixture);
-    await fixture.manager.sync(true);
+    await fixture.manager.sync(selection(true, true));
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
     settings.extensions.unshift('/keep/another-extension.ts');
     await writeFile(fixture.piSettingsFile, JSON.stringify(settings), 'utf8');
 
-    expect(await fixture.manager.sync(false)).toEqual({ state: 'disabled' });
+    expect(await fixture.manager.sync(selection(false, false))).toEqual({
+      launch: { state: 'disabled' },
+      extension: { state: 'disabled' },
+    });
     const disabled = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
     expect(disabled.extensions).toEqual(['/keep/another-extension.ts']);
     await expect(readFile(fixture.lifecycleFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
@@ -102,8 +167,9 @@ describe('PiIntegrationManager', () => {
     await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
     await writeFile(fixture.piSettingsFile, '{ invalid json', 'utf8');
 
-    const status = await fixture.manager.sync(true);
-    expect(status.state).toBe('error');
+    const status = await fixture.manager.sync(selection(true, true));
+    expect(status.extension.state).toBe('error');
+    expect(status.launch.state).toBe('enabled');
     expect(await readFile(fixture.piSettingsFile, 'utf8')).toBe('{ invalid json');
   });
 
@@ -114,7 +180,10 @@ describe('PiIntegrationManager', () => {
     await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
     await writeFile(fixture.piSettingsFile, JSON.stringify({ packages: [packageDir] }), 'utf8');
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'package' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
     expect(settings.extensions).toBeUndefined();
   });
@@ -126,7 +195,10 @@ describe('PiIntegrationManager', () => {
     await mkdir(resolve(fixture.piSettingsFile, '..'), { recursive: true });
     await writeFile(fixture.piSettingsFile, JSON.stringify({ packages: ['../dev-package'] }), 'utf8');
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'package' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
     expect(settings.extensions).toBeUndefined();
   });
@@ -145,7 +217,10 @@ describe('PiIntegrationManager', () => {
       'utf8',
     );
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'package' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'package' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions?: string[] };
     expect(settings.extensions).toEqual([]);
   });
@@ -160,7 +235,10 @@ describe('PiIntegrationManager', () => {
       'utf8',
     );
 
-    expect(await fixture.manager.sync(true)).toEqual({ state: 'enabled', extensionSource: 'bundled' });
+    expect(await fixture.manager.sync(selection(true, true))).toEqual({
+      launch: { state: 'enabled' },
+      extension: { state: 'enabled', extensionSource: 'bundled' },
+    });
     const settings = JSON.parse(await readFile(fixture.piSettingsFile, 'utf8')) as { extensions: string[] };
     expect(settings.extensions).toContain(fixture.extensionFile.replaceAll('\\', '/'));
   });

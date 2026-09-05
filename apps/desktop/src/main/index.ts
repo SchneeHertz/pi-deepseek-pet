@@ -58,7 +58,10 @@ let settingsWindow: BrowserWindow | undefined;
 let windowManager: PetWindowManager | undefined;
 let settingsStore: SettingsStore | undefined;
 let piIntegrationManager: PiIntegrationManager | undefined;
-let piIntegrationStatus: PiIntegrationStatus = { state: 'disabled' };
+let piIntegrationStatus: PiIntegrationStatus = {
+  launch: { state: 'disabled' },
+  extension: { state: 'disabled' },
+};
 let registry: SourceRegistry | undefined;
 let apiServer: PetApiServer | undefined;
 let bridgeDescriptor: ReturnType<typeof createBridgeDescriptor> | undefined;
@@ -113,11 +116,15 @@ async function startApplication(): Promise<void> {
   piIntegrationManager = new PiIntegrationManager({
     piSettingsFile: paths.piSettingsFile,
     lifecycleFile: paths.lifecycleFile,
+    extensionRegistrationFile: paths.piExtensionRegistrationFile,
     extensionFile: paths.bundledExtensionFile,
     desktopCommand: process.execPath,
     desktopArgs: app.isPackaged ? [] : [app.getAppPath()],
   });
-  piIntegrationStatus = await piIntegrationManager.sync(settings.manageWithPi);
+  piIntegrationStatus = await piIntegrationManager.sync({
+    launchWithPi: settings.manageWithPi,
+    configureExtension: settings.configurePiExtension,
+  });
 
   const resources = await loadAnimationResources(paths.manifestFile, paths.animationDirectory);
   registerAnimationScheme(protocol, resources.animationFiles);
@@ -311,10 +318,13 @@ async function updateSettings(
   if ('launchAtLogin' in normalizedPatch || 'manageWithPi' in normalizedPatch) {
     app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin });
   }
-  if ('manageWithPi' in normalizedPatch) {
-    piIntegrationStatus = (await piIntegrationManager?.sync(settings.manageWithPi)) ?? {
-      state: 'error',
-      message: 'Pi 集成管理器尚未初始化',
+  if ('manageWithPi' in normalizedPatch || 'configurePiExtension' in normalizedPatch) {
+    piIntegrationStatus = (await piIntegrationManager?.sync({
+      launchWithPi: settings.manageWithPi,
+      configureExtension: settings.configurePiExtension,
+    })) ?? {
+      launch: { state: 'error', message: 'Pi 集成管理器尚未初始化' },
+      extension: { state: 'error', message: 'Pi 集成管理器尚未初始化' },
     };
     if (bootstrapData) bootstrapData.piIntegration = piIntegrationStatus;
     sendRendererEvent({ type: 'pi-integration', status: piIntegrationStatus });
@@ -330,7 +340,7 @@ async function updateSettings(
 
 function normalizeStartupSettings(patch: PetSettingsPatch): PetSettingsPatch {
   if (patch.manageWithPi === true && patch.launchAtLogin === true) {
-    throw new Error('“随 Pi 启停”和“登录后自动启动”不能同时启用');
+    throw new Error('“随 Pi 联动启动和退出”和“登录后自动启动”不能同时启用');
   }
   if (patch.manageWithPi === true) return { ...patch, launchAtLogin: false };
   if (patch.launchAtLogin === true) return { ...patch, manageWithPi: false };

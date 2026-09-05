@@ -139,8 +139,8 @@ test('transparent desktop window loads assets and accepts authenticated API acti
     await page.evaluate(() => window.piPet.updateSettings({ size: 462 }));
     await expect.poll(async () => Math.abs((await windowWidth())! - 462)).toBeLessThanOrEqual(1);
 
-    // Pi 托管设置应只在隔离的全局设置中注册内置扩展，并可干净撤销。
-    await page.evaluate(() => window.piPet.updateSettings({ manageWithPi: true }));
+    // 集成脚本和联动启动可独立配置，并且只修改隔离的全局 Pi 设置。
+    await page.evaluate(() => window.piPet.updateSettings({ configurePiExtension: true }));
     const piSettingsFile = resolve(temporaryDirectory, 'pi-agent', 'settings.json');
     await expect
       .poll(async () => {
@@ -155,6 +155,14 @@ test('transparent desktop window loads assets and accepts authenticated API acti
       })
       .toBe(true);
     const lifecycleFile = resolve(temporaryDirectory, 'pi-lifecycle-v1.json');
+    await expect(
+      readFile(lifecycleFile, 'utf8').then(
+        () => true,
+        () => false,
+      ),
+    ).resolves.toBe(false);
+
+    await page.evaluate(() => window.piPet.updateSettings({ manageWithPi: true }));
     await expect
       .poll(async () =>
         readFile(lifecycleFile, 'utf8')
@@ -163,6 +171,18 @@ test('transparent desktop window loads assets and accepts authenticated API acti
       )
       .toBe(true);
     await page.evaluate(() => window.piPet.updateSettings({ manageWithPi: false }));
+    await expect
+      .poll(async () =>
+        readFile(lifecycleFile, 'utf8').then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(false);
+    const configuredPiSettings = JSON.parse(await readFile(piSettingsFile, 'utf8')) as { extensions?: string[] };
+    expect(configuredPiSettings.extensions?.length).toBe(1);
+
+    await page.evaluate(() => window.piPet.updateSettings({ configurePiExtension: false }));
     await expect
       .poll(async () => {
         const piSettings = JSON.parse(await readFile(piSettingsFile, 'utf8')) as { extensions?: string[] };
@@ -218,6 +238,7 @@ test('a Pi-managed desktop exits after its final source is released', async () =
       bubblesEnabled: true,
       launchAtLogin: false,
       manageWithPi: true,
+      configurePiExtension: true,
       pinnedSourceId: null,
       position: null,
     }),

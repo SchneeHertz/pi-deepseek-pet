@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: PetSettings = {
   bubblesEnabled: true,
   launchAtLogin: false,
   manageWithPi: false,
+  configurePiExtension: false,
   pinnedSourceId: null,
   position: null,
 };
@@ -36,7 +37,13 @@ export class SettingsStore {
     try {
       const value = JSON.parse(await readFile(this.#filePath, 'utf8')) as unknown;
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('settings must be an object');
-      this.#settings = PetSettingsSchema.parse({ ...DEFAULT_SETTINGS, ...value });
+      const document = value as Record<string, unknown>;
+      const migrated = { ...DEFAULT_SETTINGS, ...document };
+      // Before the settings were split, manageWithPi controlled both lifecycle and extension registration.
+      if (!Object.hasOwn(document, 'configurePiExtension')) {
+        migrated.configurePiExtension = document.manageWithPi === true;
+      }
+      this.#settings = PetSettingsSchema.parse(migrated);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== 'ENOENT')

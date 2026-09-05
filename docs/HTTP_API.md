@@ -139,12 +139,13 @@ Phase：`idle | thinking | responding | tool | waiting | compacting`。同一状
   "bubblesEnabled": true,
   "launchAtLogin": false,
   "manageWithPi": true,
+  "configurePiExtension": true,
   "pinnedSourceId": null,
   "position": null
 }
 ```
 
-`position` 也可为 `{ "displayId": "...", "xRatio": 0.8, "yRatio": 0.2 }`。`manageWithPi` 会配置 Pi 全局扩展并启用随 Pi 启停；它与 `launchAtLogin` 互斥。
+`position` 也可为 `{ "displayId": "...", "xRatio": 0.8, "yRatio": 0.2 }`。`configurePiExtension` 管理 Pi 全局设置中的内置集成脚本，`manageWithPi` 只控制随 Pi 联动启停；两者可独立设置。`manageWithPi` 与 `launchAtLogin` 互斥。
 
 ## PowerShell 示例
 

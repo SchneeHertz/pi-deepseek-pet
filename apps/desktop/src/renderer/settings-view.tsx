@@ -58,29 +58,46 @@ export function SettingsView(): React.JSX.Element {
 
       <section className="pi-integration-section">
         <h2>Pi 集成</h2>
-        <Toggle
-          label="随 Pi 启动和退出"
-          checked={settings.manageWithPi}
-          onChange={(manageWithPi) =>
-            setSettings({
-              ...settings,
-              manageWithPi,
-              launchAtLogin: manageWithPi ? false : settings.launchAtLogin,
-            })
-          }
-        />
-        <p className="setting-help">
-          保存后，Pi 会自动加载随桌宠附带的扩展、启动桌宠，并在最后一个 Pi 退出时关闭桌宠。已运行的 Pi 可执行
-          <code>/reload</code>，否则下次启动生效。
-        </p>
-        {piIntegration?.state === 'enabled' && (
-          <p className="integration-status success">
-            已配置（{piIntegration.extensionSource === 'package' ? '现有 Pi Package' : '内置扩展'}）
+        <div className="integration-part">
+          <Toggle
+            label="随 Pi 联动启动和退出"
+            checked={settings.manageWithPi}
+            onChange={(manageWithPi) =>
+              setSettings({
+                ...settings,
+                manageWithPi,
+                launchAtLogin: manageWithPi ? false : settings.launchAtLogin,
+              })
+            }
+          />
+          <p className="setting-help">
+            保存后允许 Pi 启动桌宠，并在最后一个 Pi 退出时关闭由 Pi 启动的桌宠。此功能需要 Pi 已加载集成脚本。
           </p>
-        )}
-        {piIntegration?.state === 'error' && (
-          <p className="integration-status error">配置失败：{piIntegration.message}</p>
-        )}
+          {piIntegration?.launch.state === 'enabled' && <p className="integration-status success">联动启动已配置</p>}
+          {piIntegration?.launch.state === 'error' && (
+            <p className="integration-status error">联动启动配置失败：{piIntegration.launch.message}</p>
+          )}
+        </div>
+        <div className="integration-part">
+          <Toggle
+            label="自动配置 Pi 集成脚本"
+            checked={settings.configurePiExtension}
+            onChange={(configurePiExtension) => setSettings({ ...settings, configurePiExtension })}
+          />
+          <p className="setting-help">
+            将内置扩展加入 Pi 全局设置；若已安装 Pi Package 则直接复用。此项只负责状态连接，不改变桌宠启动方式。已运行的
+            Pi 可执行 <code>/reload</code>，否则下次启动生效。
+          </p>
+          {piIntegration?.extension.state === 'enabled' && (
+            <p className="integration-status success">
+              集成脚本已配置（
+              {piIntegration.extension.extensionSource === 'package' ? '现有 Pi Package' : '内置扩展'}）
+            </p>
+          )}
+          {piIntegration?.extension.state === 'error' && (
+            <p className="integration-status error">集成脚本配置失败：{piIntegration.extension.message}</p>
+          )}
+        </div>
       </section>
 
       <section className="toggle-list">

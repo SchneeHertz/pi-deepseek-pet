@@ -162,6 +162,12 @@ body {
   gap: 13px;
 }
 
+.integration-part + .integration-part {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgb(94 82 146 / 13%);
+}
+
 .pi-integration-section .setting-help {
   margin-top: 12px;
   line-height: 1.55;

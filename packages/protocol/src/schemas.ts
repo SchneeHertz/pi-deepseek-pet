@@ -162,6 +162,7 @@ export const PetSettingsSchema = z
     bubblesEnabled: z.boolean(),
     launchAtLogin: z.boolean(),
     manageWithPi: z.boolean(),
+    configurePiExtension: z.boolean(),
     pinnedSourceId: SourceIdSchema.nullable(),
     position: SavedPositionSchema.nullable(),
   })
